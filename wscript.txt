@@ -1,0 +1,2 @@
+//wscript for integrating crypto++ library with ns3
+

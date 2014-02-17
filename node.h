@@ -32,6 +32,7 @@
 #include "crypto++/secblock.h"
 using CryptoPP::SecByteBlock;
 using std::map;
+using std::pair;
 namespace ns3 {
 
 class Application;
@@ -64,7 +65,7 @@ public:
 	void putPublicKeyInMap(int nodeId, SecByteBlock key);
 	void setPrivateKey(SecByteBlock key);
         void setPublicKey(SecByteBlock key);
-
+SecByteBlock getPublicKey();
   static TypeId GetTypeId (void);
 
   Node();

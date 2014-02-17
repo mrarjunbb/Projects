@@ -243,6 +243,26 @@ map<int,SecByteBlock> publicKeyMap;
   DeviceAdditionListenerList m_deviceAdditionListeners;
 };
 
+
+SecByteBlock Node::getPublicKey(int nodeId)
+{
+	map<int,SecByteBlock>::iterator p;
+	p = publicKeyMap.find(nodeId);
+	if(p != publicKeyMap.end())
+		return p->second;
+	else 
+		return SecByteBlock(0);
+}
+
+void Node::putPublicKey(int nodeId, SecByteBlock key)
+{
+	publicKeyMap.insert(pair<int,SecByteBlock>(nodeId,key));
+}
+void Node::setPrivateKey(SecByteBlock key)
+{
+	privateKey = key;
+}
+
 } // namespace ns3
 
 #endif /* NODE_H */

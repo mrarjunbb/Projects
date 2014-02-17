@@ -41,6 +41,25 @@ using CryptoPP::StringSink;
      using namespace ns3;
      using namespace CryptoPP;
 
+
+     Integer p("0xB10B8F96A080E01DDE92DE5EAE5D54EC52C99FBCFB06A3C6"
+			"9A6A9DCA52D23B616073E28675A23D189838EF1E2EE652C0"
+			"13ECB4AEA906112324975C3CD49B83BFACCBDD7D90C4BD70"
+			"98488E9C219A73724EFFD6FAE5644738FAA31A4FF55BCCC0"
+			"A151AF5F0DC8B4BD45BF37DF365C1A65E68CFDA76D4DA708"
+			"DF1FB2BC2E4A4371");
+
+	Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
+			"D6406CFF14266D31266FEA1E5C41564B777E690F5504F213"
+			"160217B4B01B886A5E91547F9E2749F4D7FBD7D3B9A92EE1"
+			"909D0D2263F80A76A6A24C087A091F531DBF0A0169B6A28A"
+			"D662A4D18E73AFA32D779D5918D08BC8858F4DCEF97C2A24"
+			"855E6EEB22B3B2E5");
+
+	Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
+
+
+
      static Queue1* q;
      static Hasht* hasht;
      static int requestPackets[14] = {1,4,6,1,18,3,19,4,6,9,17,8,8,17}; 
@@ -81,6 +100,12 @@ using CryptoPP::StringSink;
     //static Hasht* hasht;
     //static Queue1* q;
  
+
+ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
+  {
+	
+  }
+
      static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
                                   uint32_t pktCount, Time pktInterval , int i)
      {
@@ -103,6 +128,57 @@ using CryptoPP::StringSink;
         }
     }
     
+    void generateSecretKey(SecByteBlock *privateKey, SecByteBlock *publicKey)
+    {
+	try{
+		DH dh;
+		AutoSeededRandomPool rnd;
+
+		dh.AccessGroupParameters().Initialize(p, q, g);
+		
+
+		if(!dh.GetGroupParameters().ValidateGroup(rnd, 3))
+		   
+			throw runtime_error("Failed to validate prime and generator");
+
+		size_t count = 0;
+
+		p = dh.GetGroupParameters().GetModulus();
+		q = dh.GetGroupParameters().GetSubgroupOrder();
+		g = dh.GetGroupParameters().GetGenerator();
+
+		// http://groups.google.com/group/sci.crypt/browse_thread/thread/7dc7eeb04a09f0ce
+		Integer v = ModularExponentiation(g, q, p);
+		if(v != Integer::One())
+			throw runtime_error("Failed to verify order of the subgroup");
+
+
+		//////////////////////////////////////////////////////////////
+
+		SecByteBlock priv(dh.PrivateKeyLength());
+		SecByteBlock pub(dh.PublicKeyLength());
+		dh.GenerateKeyPair(rnd, priv, pub);		
+
+		//////////////////////////////////////////////////////////////
+
+	//return priv;
+
+	*privateKey = priv;
+	*publicKey = pub;
+    }
+	catch(const CryptoPP::Exception& e)
+	{
+		cerr << e.what() << endl;
+		//return SecByteBlock(0);
+	}
+
+	catch(const std::exception& e)
+	{
+		cerr << e.what() << endl;
+		//return SecByteBlock(0);
+	}		
+}
+
     
     int main (int argc, char *argv[])
     {
@@ -158,16 +234,7 @@ using CryptoPP::StringSink;
     
      NodeContainer c;
       c.Create (numNodes);
- 
-/*
-        NodeContainer c;
-        for ( int i=0;i<3;i++){
-        Ptr<MyNode> mynode(new MyNode(i));
-        c.Add(mynode);
-        }
-*/      
-       // c.Get(0)->printId();
-        std::cout<<"sdfdsfdsf : "<<c.Get(0)->GetId()<<"\n";
+
       // The below set of helpers will help us to put together the wifi NICs we want
       WifiHelper wifi;
       if (verbose)
@@ -225,7 +292,7 @@ using CryptoPP::StringSink;
       Ipv4InterfaceContainer i = ipv4.Assign (devices);
     
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-      Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
+    /*  Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
       recvSink->Bind (local);
       recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -233,7 +300,39 @@ using CryptoPP::StringSink;
       Ptr<Socket> source = Socket::CreateSocket (c.Get (sourceNode), tid);
       InetSocketAddress remote = InetSocketAddress (i.GetAddress (sinkNode, 0), 80);
       source->Connect (remote);
+*/
     
+	//Secret key generation
+	for(int ind =0 ; ind < (int)numNodes; ind++)
+	{
+		SecByteBlock priv, pub;
+		generateSecretKey(priv,pub);
+		c.Get(ind)->setPrivateKey(priv);
+		c.Get(ind)->setPublicKey(pub);
+	}
+
+	//send the public key to everyone
+	for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+			if(index1 != index2)
+			{
+				Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (index2), tid);
+				      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
+				      recvSink->Bind (local);
+				      recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
+				    
+				      Ptr<Socket> source = Socket::CreateSocket (c.Get (index1), tid);
+				      InetSocketAddress remote = InetSocketAddress (i.GetAddress (index2, 0), 80);
+				      source->Connect (remote);
+Simulator::Schedule (Seconds (1.0), &SendPublicKey, source,c.Get(index1)->getPublicKey());
+			}	
+		}
+	}	
+
+
+
       if (tracing == true)
         {
           AsciiTraceHelper ascii;

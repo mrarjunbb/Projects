@@ -62,7 +62,7 @@ public:
        
 	SecByteBlock getPublicKey(int nodeId);
 	void putPublicKey(int nodeId, SecByteBlock key);
-	void putPrivateKey(int nodeId,SecByteBlock key);
+	void setPrivateKey(SecByteBlock key);
 
   static TypeId GetTypeId (void);
 
@@ -215,7 +215,7 @@ protected:
 private:
 
 int Id;
-map<int,SecByteBlock> privateKeyMap;
+SecByteBlock privateKey;
 map<int,SecByteBlock> publicKeyMap;
   void NotifyDeviceAdded (Ptr<NetDevice> device);
   bool NonPromiscReceiveFromDevice (Ptr<NetDevice> device, Ptr<const Packet>, uint16_t protocol, const Address &from);

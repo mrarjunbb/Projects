@@ -60,9 +60,10 @@ class Node : public Object
 {
 public:
        
-	SecByteBlock getPublicKey(int nodeId);
-	void putPublicKey(int nodeId, SecByteBlock key);
+	SecByteBlock getPublicKeyFromMap(int nodeId);
+	void putPublicKeyInMap(int nodeId, SecByteBlock key);
 	void setPrivateKey(SecByteBlock key);
+        void setPublicKey(SecByteBlock key);
 
   static TypeId GetTypeId (void);
 
@@ -216,6 +217,7 @@ private:
 
 int Id;
 SecByteBlock privateKey;
+SecByteBlock publicKey;
 map<int,SecByteBlock> publicKeyMap;
   void NotifyDeviceAdded (Ptr<NetDevice> device);
   bool NonPromiscReceiveFromDevice (Ptr<NetDevice> device, Ptr<const Packet>, uint16_t protocol, const Address &from);
@@ -244,7 +246,7 @@ map<int,SecByteBlock> publicKeyMap;
 };
 
 
-SecByteBlock Node::getPublicKey(int nodeId)
+SecByteBlock Node::getPublicKeyFromMap(int nodeId)
 {
 	map<int,SecByteBlock>::iterator p;
 	p = publicKeyMap.find(nodeId);
@@ -254,13 +256,22 @@ SecByteBlock Node::getPublicKey(int nodeId)
 		return SecByteBlock(0);
 }
 
-void Node::putPublicKey(int nodeId, SecByteBlock key)
+void Node::putPublicKeyInMap(int nodeId, SecByteBlock key)
 {
 	publicKeyMap.insert(pair<int,SecByteBlock>(nodeId,key));
 }
 void Node::setPrivateKey(SecByteBlock key)
 {
 	privateKey = key;
+}
+void Node::setPublicKey(SecByteBlock key)
+{
+	publicKey = key;
+}
+
+SecByteBlock Node::getPublicKey()
+{
+	return publicKey;
 }
 
 } // namespace ns3

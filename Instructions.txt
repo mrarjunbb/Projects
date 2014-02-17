@@ -1,6 +1,6 @@
 //Instructions for integrating crypto++ with ns3
 
-1. Replace the wscript in your /ns-3.19 folder with the one in this repository.
+1. Replace the wscript in your /ns-3.19 folder with the one in this repository. - remove the .txt extension from the file while downloading.
 2. Create your own wscript file inside the scratch folder with the following code in it.
 
 def build(bld):

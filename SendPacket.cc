@@ -8,8 +8,7 @@
      #include "ns3/olsr-helper.h"
      #include "ns3/ipv4-static-routing-helper.h"
      #include "ns3/ipv4-list-routing-helper.h"
-     #include "MyTag.h"
-     #include "LRUcache.h" 
+     #include "MyTag.h" 
 
      #include <iostream>
      #include <fstream>
@@ -91,9 +90,7 @@ using CryptoPP::StringSink;
 	}
 
 
-     static Queue1* queue;
-     static Hasht* hasht;
-     static int requestPackets[14] = {1,4,6,1,18,3,19,4,6,9,17,8,8,17}; 
+     
      void ReceivePacket (Ptr<Socket> socket)
      {
           Ptr<Packet> recPacket = socket->Recv();
@@ -107,31 +104,12 @@ using CryptoPP::StringSink;
           std::ostringstream s;
           s<<tagVal;
           std::string ss(s.str());
-          QNode* qN = queue->front;
-           int check = 0;
-	  while(qN!=NULL){
-              //  std::ostringstream qval;
-              //  qval << qN->pageNumber;
-                  
-               //   NS_LOG_UNCOND(qval.str());
-                  if(qN->pageNumber==tagVal){
-                     check = 1;
-                     NS_LOG_UNCOND("Already has packet with TagID: "+ss);
-                     break;
-                }
-          qN = qN->next; 
-
-          }
-           ReferencePage(queue,hasht,tagVal); 
-          if(check==0){ 
-            // ReferencePage(q,hasht,tagVal);
-          
+                   
           NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
-     }}
+     }
+
     static std::string msgs[20];
-    //static Hasht* hasht;
-    //static Queue1* q;
- 
+    
 /*
  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
   {
@@ -152,18 +130,18 @@ using CryptoPP::StringSink;
      {
       if (pktCount > 0)
         {
-          std::string msgx = msgs[requestPackets[i]]; 
+          std::string msgx = msgs[i]; 
 
           Ptr<Packet> sendPacket =
                   Create<Packet> ((uint8_t*)msgx.c_str(),pktSize);
 
           MyTag sendTag;
-          sendTag.SetSimpleValue(requestPackets[i]);
+          sendTag.SetSimpleValue(i);
           sendPacket->AddPacketTag(sendTag); 
           socket->Send (sendPacket);
-          NS_LOG_UNCOND ("Sending one packet: "+msgx);  
-          if(i<13){ Simulator::Schedule (pktInterval, &GenerateTraffic, 
-                               socket, pktSize,pktCount-1, pktInterval, i+1);}
+	 NS_LOG_UNCOND ("Sending one packet: "+msgx);  
+           Simulator::Schedule (pktInterval, &GenerateTraffic, 
+                               socket, pktSize,pktCount-1, pktInterval, i+1);
         }
       else
         {
@@ -235,9 +213,7 @@ return *keyPair;
       msgs[16]="NCSU"; msgs[17]="University of Maryland,College Park";
       msgs[18]="Stony Brook University"; 
       msgs[19]="University of Indiana,Bloomington";
-      
-      queue=createQueue(5);
-      hasht = createHash(20); 
+
       
       std::string phyMode ("DsssRate1Mbps");
       double distance = 500;  // m

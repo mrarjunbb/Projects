@@ -1,4 +1,4 @@
-  
+ 
      #include "ns3/core-module.h"
      #include "ns3/network-module.h"
      #include "ns3/mobility-module.h"
@@ -10,6 +10,7 @@
      #include "ns3/ipv4-list-routing-helper.h"
      #include "MyTag.h"
      #include "LRUcache.h" 
+
      #include <iostream>
      #include <fstream>
      #include <vector>
@@ -21,6 +22,9 @@
 using CryptoPP::AutoSeededRandomPool;
 #include "crypto++/nbtheory.h"
 using CryptoPP::ModularExponentiation;
+
+#include <stdexcept>
+using std::runtime_error; 
 
 #include "crypto++/dh.h"
 using CryptoPP::DH;
@@ -59,8 +63,35 @@ using CryptoPP::StringSink;
 	Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
 
+	class KeyPair
+	{
+		private: 
+			SecByteBlock priv_Key;
+			SecByteBlock pub_Key;
+			
+			
+		public:
+			KeyPair(){}
+			KeyPair(SecByteBlock privKey, SecByteBlock pubKey)
+			{
+				priv_Key = privKey;
+				pub_Key = pubKey;
+			}
+			SecByteBlock getPrivateKey();
+			SecByteBlock getPublicKey();
+			
+	};
+	SecByteBlock KeyPair::getPrivateKey()
+	{
+		return priv_Key;
+	}
+	SecByteBlock KeyPair::getPublicKey()
+	{
+		return pub_Key;
+	}
 
-     static Queue1* q;
+
+     static Queue1* queue;
      static Hasht* hasht;
      static int requestPackets[14] = {1,4,6,1,18,3,19,4,6,9,17,8,8,17}; 
      void ReceivePacket (Ptr<Socket> socket)
@@ -76,7 +107,7 @@ using CryptoPP::StringSink;
           std::ostringstream s;
           s<<tagVal;
           std::string ss(s.str());
-          QNode* qN = q->front;
+          QNode* qN = queue->front;
            int check = 0;
 	  while(qN!=NULL){
               //  std::ostringstream qval;
@@ -89,8 +120,9 @@ using CryptoPP::StringSink;
                      break;
                 }
           qN = qN->next; 
+
           }
-           ReferencePage(q,hasht,tagVal); 
+           ReferencePage(queue,hasht,tagVal); 
           if(check==0){ 
             // ReferencePage(q,hasht,tagVal);
           
@@ -100,20 +132,31 @@ using CryptoPP::StringSink;
     //static Hasht* hasht;
     //static Queue1* q;
  
-
+/*
  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
   {
 	
+	std::cout<<"Inside Send Public Key method";
+	socket->Close();
   }
 
+  void ReceivePublicKey (Ptr<Socket> socket)
+  {
+	
+	std::cout<<"Inside Receive Public Key method";
+	
+  }
+*/
      static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
                                   uint32_t pktCount, Time pktInterval , int i)
      {
       if (pktCount > 0)
         {
           std::string msgx = msgs[requestPackets[i]]; 
+
           Ptr<Packet> sendPacket =
                   Create<Packet> ((uint8_t*)msgx.c_str(),pktSize);
+
           MyTag sendTag;
           sendTag.SetSimpleValue(requestPackets[i]);
           sendPacket->AddPacketTag(sendTag); 
@@ -128,7 +171,7 @@ using CryptoPP::StringSink;
         }
     }
     
-    void generateSecretKey(SecByteBlock *privateKey, SecByteBlock *publicKey)
+    KeyPair generateSecretKey()
     {
 	try{
 		DH dh;
@@ -137,11 +180,9 @@ using CryptoPP::StringSink;
 		dh.AccessGroupParameters().Initialize(p, q, g);
 		
 
-		if(!dh.GetGroupParameters().ValidateGroup(rnd, 3))
-		   
+		if(!dh.GetGroupParameters().ValidateGroup(rnd, 3))		   
 			throw runtime_error("Failed to validate prime and generator");
 
-		size_t count = 0;
 
 		p = dh.GetGroupParameters().GetModulus();
 		q = dh.GetGroupParameters().GetSubgroupOrder();
@@ -163,19 +204,21 @@ using CryptoPP::StringSink;
 
 	//return priv;
 
-	*privateKey = priv;
-	*publicKey = pub;
+	KeyPair *keyPair = new KeyPair(priv,pub);
+return *keyPair;
     }
 	catch(const CryptoPP::Exception& e)
 	{
-		cerr << e.what() << endl;
+		std::cerr << "Crypto error : "<< e.what() << std::endl;
 		//return SecByteBlock(0);
+		return KeyPair(SecByteBlock(0),SecByteBlock(0));
 	}
 
 	catch(const std::exception& e)
 	{
-		cerr << e.what() << endl;
+		std::cerr << "Standard error : "<<e.what() << std::endl;
 		//return SecByteBlock(0);
+		return KeyPair(SecByteBlock(0),SecByteBlock(0));
 	}		
 }
 
@@ -193,7 +236,7 @@ using CryptoPP::StringSink;
       msgs[18]="Stony Brook University"; 
       msgs[19]="University of Indiana,Bloomington";
       
-      q=createQueue(5);
+      queue=createQueue(5);
       hasht = createHash(20); 
       
       std::string phyMode ("DsssRate1Mbps");
@@ -205,7 +248,7 @@ using CryptoPP::StringSink;
       uint32_t sourceNode = 2;
       double interval = 1.0; // seconds
       bool verbose = false;
-      bool tracing = false;
+      bool tracing = true;
     
       CommandLine cmd;
     
@@ -292,7 +335,7 @@ using CryptoPP::StringSink;
       Ipv4InterfaceContainer i = ipv4.Assign (devices);
     
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-    /*  Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
+      Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
       recvSink->Bind (local);
       recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -300,15 +343,18 @@ using CryptoPP::StringSink;
       Ptr<Socket> source = Socket::CreateSocket (c.Get (sourceNode), tid);
       InetSocketAddress remote = InetSocketAddress (i.GetAddress (sinkNode, 0), 80);
       source->Connect (remote);
-*/
+
     
+
+/*
 	//Secret key generation
 	for(int ind =0 ; ind < (int)numNodes; ind++)
 	{
 		SecByteBlock priv, pub;
-		generateSecretKey(priv,pub);
-		c.Get(ind)->setPrivateKey(priv);
-		c.Get(ind)->setPublicKey(pub);
+		KeyPair k;
+		k = generateSecretKey();
+		c.Get(ind)->setPrivateKey(k.getPrivateKey());
+		c.Get(ind)->setPublicKey(k.getPublicKey());
 	}
 
 	//send the public key to everyone
@@ -318,20 +364,20 @@ using CryptoPP::StringSink;
 		{
 			if(index1 != index2)
 			{
-				Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (index2), tid);
-				      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
-				      recvSink->Bind (local);
-				      recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
+				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 81);
+				      recvNodeSink->Bind (localSocket);
+				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
 				    
-				      Ptr<Socket> source = Socket::CreateSocket (c.Get (index1), tid);
-				      InetSocketAddress remote = InetSocketAddress (i.GetAddress (index2, 0), 80);
-				      source->Connect (remote);
-Simulator::Schedule (Seconds (1.0), &SendPublicKey, source,c.Get(index1)->getPublicKey());
+				      Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
+				      sourceNodeSocket->Connect (remoteSocket);
+	Simulator::Schedule (Seconds (1.0), &SendPublicKey, sourceNodeSocket,c.Get(index1)->getPublicKey());
 			}	
 		}
 	}	
 
-
+*/
 
       if (tracing == true)
         {
@@ -344,9 +390,11 @@ Simulator::Schedule (Seconds (1.0), &SendPublicKey, source,c.Get(index1)->getPub
     
           // To do-- enable an IP-level trace that shows forwarding events only
         }
+
+	//wifiPhy.EnablePcap ("check_traffic", devices);
     
       // Give OLSR time to converge-- 30 seconds perhaps
-      Simulator::Schedule (Seconds (30.0), &GenerateTraffic, 
+      Simulator::Schedule (Seconds (1.0), &GenerateTraffic, 
                            source, packetSize, numPackets, interPacketInterval,0);
     
       // Output what we are doing

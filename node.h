@@ -27,12 +27,7 @@
 #include "ns3/callback.h"
 #include "ns3/ptr.h"
 #include "ns3/net-device.h"
-#include <map>
-#include <iostream>
-#include "crypto++/secblock.h"
-using CryptoPP::SecByteBlock;
-using std::map;
-using std::pair;
+
 namespace ns3 {
 
 class Application;
@@ -60,12 +55,6 @@ class Address;
 class Node : public Object
 {
 public:
-       
-	SecByteBlock getPublicKeyFromMap(int nodeId);
-	void putPublicKeyInMap(int nodeId, SecByteBlock key);
-	void setPrivateKey(SecByteBlock key);
-        void setPublicKey(SecByteBlock key);
-SecByteBlock getPublicKey();
   static TypeId GetTypeId (void);
 
   Node();
@@ -215,11 +204,6 @@ protected:
   virtual void DoDispose (void);
   virtual void DoInitialize (void);
 private:
-
-int Id;
-SecByteBlock privateKey;
-SecByteBlock publicKey;
-map<int,SecByteBlock> publicKeyMap;
   void NotifyDeviceAdded (Ptr<NetDevice> device);
   bool NonPromiscReceiveFromDevice (Ptr<NetDevice> device, Ptr<const Packet>, uint16_t protocol, const Address &from);
   bool PromiscReceiveFromDevice (Ptr<NetDevice> device, Ptr<const Packet>, uint16_t protocol,
@@ -245,35 +229,6 @@ map<int,SecByteBlock> publicKeyMap;
   ProtocolHandlerList m_handlers;
   DeviceAdditionListenerList m_deviceAdditionListeners;
 };
-
-
-SecByteBlock Node::getPublicKeyFromMap(int nodeId)
-{
-	map<int,SecByteBlock>::iterator p;
-	p = publicKeyMap.find(nodeId);
-	if(p != publicKeyMap.end())
-		return p->second;
-	else 
-		return SecByteBlock(0);
-}
-
-void Node::putPublicKeyInMap(int nodeId, SecByteBlock key)
-{
-	publicKeyMap.insert(pair<int,SecByteBlock>(nodeId,key));
-}
-void Node::setPrivateKey(SecByteBlock key)
-{
-	privateKey = key;
-}
-void Node::setPublicKey(SecByteBlock key)
-{
-	publicKey = key;
-}
-
-SecByteBlock Node::getPublicKey()
-{
-	return publicKey;
-}
 
 } // namespace ns3
 

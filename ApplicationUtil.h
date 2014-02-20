@@ -8,6 +8,7 @@
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ipv4-list-routing-helper.h"
 #include "MyTag.h"
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -23,6 +24,8 @@
 #include <crypto++/hex.h>
 #include <crypto++/filters.h>
 #include <map>
+#include <sstream>
+#include <iomanip>
 
 using CryptoPP::AutoSeededRandomPool;
 using CryptoPP::ModularExponentiation;
@@ -55,21 +58,62 @@ Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 static std::string msgs[20];
 
 class ApplicationUtil
-{
+{	
 	private:
+	 static bool instanceFlag;
+    	static ApplicationUtil *appUtil;
+    	ApplicationUtil()
+    	{
+       	 //private constructor
+    	}
+
 		map<int,SecByteBlock> publicKeyMap;
 		map<int,SecByteBlock> privateKeyMap;
 		map<int,SecByteBlock> dhSecretKeyMap;
-
+		map<Ptr<Node>,int> nodeMap;
 	public:
+			
 		SecByteBlock getPublicKeyFromMap(int nodeId);
 		void putPublicKeyInMap(int nodeId, SecByteBlock key);
 		SecByteBlock getPrivateKeyFromMap(int nodeId);
 		void putPrivateKeyInMap(int nodeId, SecByteBlock key);
 		SecByteBlock getSecretKeyFromMap(int nodeId);
 		void putSecretKeyInMap(int nodeId, SecByteBlock key);
+		void putNodeInMap(Ptr<Node> node,int index);
+		int getNodeFromMap(Ptr<Node> node);
+		static ApplicationUtil* getInstance();	
+	        ~ApplicationUtil()
+	        {
+		  instanceFlag = false;
+	        }
 };
-		
+bool ApplicationUtil::instanceFlag = false;
+ApplicationUtil* ApplicationUtil::appUtil = NULL;
+
+ApplicationUtil* ApplicationUtil::getInstance()
+{
+	if(!instanceFlag)
+        {
+		appUtil = new ApplicationUtil();
+		instanceFlag = true;
+	}
+        return appUtil;
+    
+}		
+void ApplicationUtil::putNodeInMap(Ptr<Node> node,int index)
+{
+	nodeMap.insert(pair<Ptr<Node>,int>(node,index));
+}
+
+int ApplicationUtil::getNodeFromMap(Ptr<Node> node)
+{
+	map<Ptr<Node>,int>::iterator p;
+	p = nodeMap.find(node);
+	if(p != nodeMap.end())
+		return p->second;
+	else 
+		return -1;	
+}
 SecByteBlock ApplicationUtil::getPublicKeyFromMap(int nodeId)
 {
 	map<int,SecByteBlock>::iterator p;

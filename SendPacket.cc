@@ -2,8 +2,7 @@
 
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
-
-     
+ 
      void ReceivePacket (Ptr<Socket> socket)
      {
           Ptr<Packet> recPacket = socket->Recv();
@@ -45,17 +44,61 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
         }
     }
 
-  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
-  {
+std::string hexStr(byte *data, int len)
+{
+    std::stringstream ss;
+    ss<<std::hex;
+    for(int i(0);i<len;++i)
+        ss<<(int)data[i];
+    return ss.str();
+}
+  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
+  {	
+	//NS_LOG_UNCOND("Inside Send Public Key method\n");
 	
-	NS_LOG_UNCOND("Inside Send Public Key method");
+	Ptr<Packet> sendPacket =
+                  Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
+
+	std::cout<<"Node : "<<index<<" sending public key data\n";
+	MyTag sendTag;
+          sendTag.SetSimpleValue(index);
+          sendPacket->AddPacketTag(sendTag);
+
+	socket->Send(sendPacket);
+	std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
+ 	//NS_LOG_UNCOND ("Sending Public Key: "+sendData); 
+	
 	socket->Close();
   }
 
   void ReceivePublicKey (Ptr<Socket> socket)
   {
+
+	Ptr<Node> recvnode = socket->GetNode();
+        int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+
+ 	Ptr<Packet> recPacket = socket->Recv();
+	 std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
+	 uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	 recPacket->CopyData(buffer,recPacket->GetSize());
 	
-	NS_LOG_UNCOND("Inside Receive Public Key method");
+	SecByteBlock pubKey((byte *)buffer,recPacket->GetSize()); 	
+	//ApplicationUtil::getInstance()
+
+
+	std::string recData = hexStr(buffer,recPacket->GetSize());     
+	//NS_LOG_UNCOND("Receiving Public Key : "+recData);
+
+	  MyTag recTag;
+          recPacket->PeekPacketTag(recTag);
+       	  int tagVal =int(recTag.GetSimpleValue());
+          std::ostringstream s;
+          s<<tagVal;
+          std::string ss(s.str());
+            
+	std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
+ 	//std::cout<<"Received Public Key: "<<recvData<<"\n";        
+          std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
 	
   }
 
@@ -102,6 +145,11 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 	}		
 }
 
+int randomWithProb(double p) {
+    double rndDouble = (double)rand() / RAND_MAX;
+    return rndDouble > p;
+}
+
     
     int main (int argc, char *argv[])
     {
@@ -118,13 +166,13 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
       msgs[18]="Stony Brook University"; 
       msgs[19]="University of Indiana,Bloomington";
 
-	ApplicationUtil *appUtil = new ApplicationUtil();      
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();     
 
       std::string phyMode ("DsssRate1Mbps");
       double distance = 500;  // m
       uint32_t packetSize = 1000; // bytes
       uint32_t numPackets = 20;
-      uint32_t numNodes = 3;  // by default, 5x5
+      int numNodes = 3;  // by default, 5x5
       uint32_t sinkNode = 0;
       uint32_t sourceNode = 2;
       double interval = 1.0; // seconds
@@ -158,7 +206,10 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
     
      NodeContainer c;
       c.Create (numNodes);
-
+	for(int nodeind = 0; nodeind < numNodes;nodeind++)
+	{
+		appUtil->putNodeInMap(c.Get(nodeind),nodeind);	
+	}
       // The below set of helpers will help us to put together the wifi NICs we want
       WifiHelper wifi;
       if (verbose)
@@ -217,7 +268,7 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
     
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
  
-      Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
+ /*     Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
       recvSink->Bind (local);
       recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -226,7 +277,7 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
       InetSocketAddress remote = InetSocketAddress (i.GetAddress (sinkNode, 0), 80);
       source->Connect (remote);
 
-    
+    */
 
 	//Secret key generation
 	for(int ind =0 ; ind < (int)numNodes; ind++)
@@ -238,7 +289,7 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 	//send the public key to everyone
 	for (int index1 = 0; index1 < (int)numNodes; index1++)
 	{
-		  Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+		  
 		for (int index2 = 0; index2 < (int)numNodes; index2++)
 		{
 			if(index1 != index2)
@@ -249,8 +300,9 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
 				    				      
 				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
+				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
-	Simulator::Schedule (Seconds (1.0), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1));
+	Simulator::Schedule (Seconds (10.0), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
 			}	
 		}
 	}	
@@ -270,12 +322,12 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
         }	
     
       // Give OLSR time to converge-- 30 seconds perhaps
-      Simulator::Schedule (Seconds (1.0), &GenerateTraffic, source, packetSize, numPackets, interPacketInterval,0);
+  //    Simulator::Schedule (Seconds (1.0), &GenerateTraffic, source, packetSize, numPackets, interPacketInterval,0);
  
       // Output what we are doing
       NS_LOG_UNCOND ("Testing from node " << sourceNode << " to " << sinkNode << " with grid distance " << distance);
     
-      Simulator::Stop (Seconds (132.0));
+      Simulator::Stop (Seconds (300.0));
       Simulator::Run ();
       Simulator::Destroy ();
     

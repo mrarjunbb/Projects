@@ -1,93 +1,6 @@
- 
-     #include "ns3/core-module.h"
-     #include "ns3/network-module.h"
-     #include "ns3/mobility-module.h"
-     #include "ns3/config-store-module.h"
-     #include "ns3/wifi-module.h"
-     #include "ns3/internet-module.h"
-     #include "ns3/olsr-helper.h"
-     #include "ns3/ipv4-static-routing-helper.h"
-     #include "ns3/ipv4-list-routing-helper.h"
-     #include "MyTag.h" 
+#include "ApplicationUtil.h"
 
-     #include <iostream>
-     #include <fstream>
-     #include <vector>
-     #include <string>
-#include "crypto++/aes.h" 
-#include "crypto++/modes.h"
-#include "crypto++/integer.h"
-#include "crypto++/osrng.h"
-using CryptoPP::AutoSeededRandomPool;
-#include "crypto++/nbtheory.h"
-using CryptoPP::ModularExponentiation;
-
-#include <stdexcept>
-using std::runtime_error; 
-
-#include "crypto++/dh.h"
-using CryptoPP::DH;
-
-#include "crypto++/secblock.h"
-using CryptoPP::SecByteBlock;
-
-#include <crypto++/hex.h>
-using CryptoPP::HexEncoder;
-
-#include <crypto++/filters.h>
-using CryptoPP::StringSink;
-
-
-     
-     NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
-     
-     using namespace ns3;
-     using namespace CryptoPP;
-
-
-     Integer p("0xB10B8F96A080E01DDE92DE5EAE5D54EC52C99FBCFB06A3C6"
-			"9A6A9DCA52D23B616073E28675A23D189838EF1E2EE652C0"
-			"13ECB4AEA906112324975C3CD49B83BFACCBDD7D90C4BD70"
-			"98488E9C219A73724EFFD6FAE5644738FAA31A4FF55BCCC0"
-			"A151AF5F0DC8B4BD45BF37DF365C1A65E68CFDA76D4DA708"
-			"DF1FB2BC2E4A4371");
-
-	Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
-			"D6406CFF14266D31266FEA1E5C41564B777E690F5504F213"
-			"160217B4B01B886A5E91547F9E2749F4D7FBD7D3B9A92EE1"
-			"909D0D2263F80A76A6A24C087A091F531DBF0A0169B6A28A"
-			"D662A4D18E73AFA32D779D5918D08BC8858F4DCEF97C2A24"
-			"855E6EEB22B3B2E5");
-
-	Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
-
-
-	class KeyPair
-	{
-		private: 
-			SecByteBlock priv_Key;
-			SecByteBlock pub_Key;
-			
-			
-		public:
-			KeyPair(){}
-			KeyPair(SecByteBlock privKey, SecByteBlock pubKey)
-			{
-				priv_Key = privKey;
-				pub_Key = pubKey;
-			}
-			SecByteBlock getPrivateKey();
-			SecByteBlock getPublicKey();
-			
-	};
-	SecByteBlock KeyPair::getPrivateKey()
-	{
-		return priv_Key;
-	}
-	SecByteBlock KeyPair::getPublicKey()
-	{
-		return pub_Key;
-	}
+NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
 
      
@@ -108,23 +21,6 @@ using CryptoPP::StringSink;
           NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
      }
 
-    static std::string msgs[20];
-    
-/*
- static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
-  {
-	
-	std::cout<<"Inside Send Public Key method";
-	socket->Close();
-  }
-
-  void ReceivePublicKey (Ptr<Socket> socket)
-  {
-	
-	std::cout<<"Inside Receive Public Key method";
-	
-  }
-*/
      static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
                                   uint32_t pktCount, Time pktInterval , int i)
      {
@@ -148,15 +44,28 @@ using CryptoPP::StringSink;
           socket->Close ();
         }
     }
-    
-    KeyPair generateSecretKey()
+
+  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub)
+  {
+	
+	NS_LOG_UNCOND("Inside Send Public Key method");
+	socket->Close();
+  }
+
+  void ReceivePublicKey (Ptr<Socket> socket)
+  {
+	
+	NS_LOG_UNCOND("Inside Receive Public Key method");
+	
+  }
+
+    void generateSecretKey(int index, ApplicationUtil *appUtil)
     {
 	try{
 		DH dh;
 		AutoSeededRandomPool rnd;
 
 		dh.AccessGroupParameters().Initialize(p, q, g);
-		
 
 		if(!dh.GetGroupParameters().ValidateGroup(rnd, 3))		   
 			throw runtime_error("Failed to validate prime and generator");
@@ -171,7 +80,6 @@ using CryptoPP::StringSink;
 		if(v != Integer::One())
 			throw runtime_error("Failed to verify order of the subgroup");
 
-
 		//////////////////////////////////////////////////////////////
 
 		SecByteBlock priv(dh.PrivateKeyLength());
@@ -180,29 +88,25 @@ using CryptoPP::StringSink;
 
 		//////////////////////////////////////////////////////////////
 
-	//return priv;
-
-	KeyPair *keyPair = new KeyPair(priv,pub);
-return *keyPair;
+		appUtil->putPrivateKeyInMap(index,priv);
+		appUtil->putPublicKeyInMap(index,pub);
     }
 	catch(const CryptoPP::Exception& e)
 	{
 		std::cerr << "Crypto error : "<< e.what() << std::endl;
-		//return SecByteBlock(0);
-		return KeyPair(SecByteBlock(0),SecByteBlock(0));
 	}
 
 	catch(const std::exception& e)
 	{
 		std::cerr << "Standard error : "<<e.what() << std::endl;
-		//return SecByteBlock(0);
-		return KeyPair(SecByteBlock(0),SecByteBlock(0));
 	}		
 }
 
     
     int main (int argc, char *argv[])
     {
+
+	NS_LOG_UNCOND("Inside Main");
       msgs[0]="UCLA";
       msgs[1]="MIT"; msgs[2]="Stanford"; msgs[3]="Berkley";
       msgs[4]="UC Irvine"; msgs[5]="UC San Diego"; msgs[6]="USC";
@@ -214,7 +118,8 @@ return *keyPair;
       msgs[18]="Stony Brook University"; 
       msgs[19]="University of Indiana,Bloomington";
 
-      
+	ApplicationUtil *appUtil = new ApplicationUtil();      
+
       std::string phyMode ("DsssRate1Mbps");
       double distance = 500;  // m
       uint32_t packetSize = 1000; // bytes
@@ -311,6 +216,7 @@ return *keyPair;
       Ipv4InterfaceContainer i = ipv4.Assign (devices);
     
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+ 
       Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
       recvSink->Bind (local);
@@ -322,20 +228,17 @@ return *keyPair;
 
     
 
-/*
 	//Secret key generation
 	for(int ind =0 ; ind < (int)numNodes; ind++)
-	{
+	{	
 		SecByteBlock priv, pub;
-		KeyPair k;
-		k = generateSecretKey();
-		c.Get(ind)->setPrivateKey(k.getPrivateKey());
-		c.Get(ind)->setPublicKey(k.getPublicKey());
+		generateSecretKey(ind,appUtil);		
 	}
-
+	
 	//send the public key to everyone
 	for (int index1 = 0; index1 < (int)numNodes; index1++)
 	{
+		  Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 		for (int index2 = 0; index2 < (int)numNodes; index2++)
 		{
 			if(index1 != index2)
@@ -344,16 +247,15 @@ return *keyPair;
 				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 81);
 				      recvNodeSink->Bind (localSocket);
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-				    
-				      Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				    				      
 				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
 				      sourceNodeSocket->Connect (remoteSocket);
-	Simulator::Schedule (Seconds (1.0), &SendPublicKey, sourceNodeSocket,c.Get(index1)->getPublicKey());
+	Simulator::Schedule (Seconds (1.0), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1));
 			}	
 		}
 	}	
 
-*/
+
 
       if (tracing == true)
         {
@@ -365,14 +267,11 @@ return *keyPair;
           olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
     
           // To do-- enable an IP-level trace that shows forwarding events only
-        }
-
-	//wifiPhy.EnablePcap ("check_traffic", devices);
+        }	
     
       // Give OLSR time to converge-- 30 seconds perhaps
-      Simulator::Schedule (Seconds (1.0), &GenerateTraffic, 
-                           source, packetSize, numPackets, interPacketInterval,0);
-    
+      Simulator::Schedule (Seconds (1.0), &GenerateTraffic, source, packetSize, numPackets, interPacketInterval,0);
+ 
       // Output what we are doing
       NS_LOG_UNCOND ("Testing from node " << sourceNode << " to " << sinkNode << " with grid distance " << distance);
     

@@ -95,14 +95,34 @@ std::string hexStr(byte *data, int len)
           std::ostringstream s;
           s<<tagVal;
           std::string ss(s.str());
-            
+      //     int srcNodeIndex = atoi(ss.c_str());
 	std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
  	//std::cout<<"Received Public Key: "<<recvData<<"\n";        
+	//std::cout<<"putting  into map of src node  "<<srcNodeIndex<<" and dest node "<<recNodeIndex<<" : "<<recvData<<"\n";        
+	  
           std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
+
+	//compute DH symmetric secret key
+
+	/*
+	ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(srcNodeIndex,recNodeIndex,pubKey);
+	SecByteBlock pubbbb = ApplicationUtil::getInstance()->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex);
+	std::string recvData1 = hexStr(pubbbb.BytePtr(),pubbbb.SizeInBytes());
+ 	std::cout<<"Getting from map of src node  "<<srcNodeIndex<<" and dest node "<<recNodeIndex<<" : "<<recvData1<<"\n";
+	*/
 	
+	DH dh;
+	dh.AccessGroupParameters().Initialize(p, q, g);
+	SecByteBlock sharedKey(ApplicationUtil::getInstance()->getDhAgreedLength());
+	
+	dh.Agree(sharedKey, ApplicationUtil::getInstance()->getPrivateKeyFromMap(recNodeIndex),pubKey);	
+	
+	ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
+	
+		
   }
 
-    void generateSecretKey(int index, ApplicationUtil *appUtil)
+    void generateKeys(int index, ApplicationUtil *appUtil)
     {
 	try{
 		DH dh;
@@ -133,6 +153,9 @@ std::string hexStr(byte *data, int len)
 
 		appUtil->putPrivateKeyInMap(index,priv);
 		appUtil->putPublicKeyInMap(index,pub);
+		appUtil->setDhAgreedLength(dh.AgreedValueLength());
+	
+		std::cout<<"Dh key length "<< index <<" : "<<dh.AgreedValueLength()<<"\n";
     }
 	catch(const CryptoPP::Exception& e)
 	{
@@ -144,6 +167,7 @@ std::string hexStr(byte *data, int len)
 		std::cerr << "Standard error : "<<e.what() << std::endl;
 	}		
 }
+
 
 int randomWithProb(double p) {
     double rndDouble = (double)rand() / RAND_MAX;
@@ -279,11 +303,11 @@ int randomWithProb(double p) {
 
     */
 
-	//Secret key generation
+	//Symmetric key generation
 	for(int ind =0 ; ind < (int)numNodes; ind++)
 	{	
 		SecByteBlock priv, pub;
-		generateSecretKey(ind,appUtil);		
+		generateKeys(ind,appUtil);		
 	}
 	
 	//send the public key to everyone
@@ -307,7 +331,14 @@ int randomWithProb(double p) {
 		}
 	}	
 
-
+	//sharing the random bit using dh secret key
+	for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+		  
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+		}
+	}
 
       if (tracing == true)
         {

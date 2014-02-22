@@ -61,6 +61,7 @@ class ApplicationUtil
 {	
 	private:
 	 static bool instanceFlag;
+	int dhAgreedLength;
     	static ApplicationUtil *appUtil;
     	ApplicationUtil()
     	{
@@ -69,19 +70,28 @@ class ApplicationUtil
 
 		map<int,SecByteBlock> publicKeyMap;
 		map<int,SecByteBlock> privateKeyMap;
-		map<int,SecByteBlock> dhSecretKeyMap;
+		map<int,SecByteBlock> dhSecretKeyMapSub;
+		map<int,map<int,SecByteBlock> > dhSecretKeyMapGlobal;
 		map<Ptr<Node>,int> nodeMap;
 	public:
-			
+		int getDhAgreedLength()
+		{
+			return dhAgreedLength;
+		}	
+		void setDhAgreedLength(int len)
+		{
+			dhAgreedLength = len;
+		}
 		SecByteBlock getPublicKeyFromMap(int nodeId);
 		void putPublicKeyInMap(int nodeId, SecByteBlock key);
 		SecByteBlock getPrivateKeyFromMap(int nodeId);
 		void putPrivateKeyInMap(int nodeId, SecByteBlock key);
-		SecByteBlock getSecretKeyFromMap(int nodeId);
-		void putSecretKeyInMap(int nodeId, SecByteBlock key);
+		SecByteBlock getSecretKeyFromGlobalMap(int nodeId,int destNodeId);
+		void putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key);
 		void putNodeInMap(Ptr<Node> node,int index);
 		int getNodeFromMap(Ptr<Node> node);
 		static ApplicationUtil* getInstance();	
+
 	        ~ApplicationUtil()
 	        {
 		  instanceFlag = false;
@@ -144,18 +154,47 @@ void ApplicationUtil::putPrivateKeyInMap(int nodeId, SecByteBlock key)
 	privateKeyMap.insert(pair<int,SecByteBlock>(nodeId,key));
 }	
 
-SecByteBlock ApplicationUtil::getSecretKeyFromMap(int nodeId)
+SecByteBlock ApplicationUtil::getSecretKeyFromGlobalMap(int nodeId, int destNodeId)
 {
-	map<int,SecByteBlock>::iterator p;
-	p = dhSecretKeyMap.find(nodeId);
-	if(p != dhSecretKeyMap.end())
-		return p->second;
+
+	map<int,map<int,SecByteBlock> >::iterator p;
+	p = dhSecretKeyMapGlobal.find(nodeId);
+
+	if(p != dhSecretKeyMapGlobal.end())
+	{
+		map<int,SecByteBlock>::iterator p1;
+		p1 = p->second.find(destNodeId);
+		if(p1 != dhSecretKeyMapSub.end())
+			return p1->second;
+		else 
+		{
+			std::cout<<"hello";
+			return SecByteBlock(0);
+		}
+	}
 	else 
-		return SecByteBlock(0);
+		{
+			std::cout<<"hello1";
+			return SecByteBlock(0);
+		}	
 }
 
-void ApplicationUtil::putSecretKeyInMap(int nodeId, SecByteBlock key)
+void ApplicationUtil::putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key)
 {
-	dhSecretKeyMap.insert(pair<int,SecByteBlock>(nodeId,key));
+
+	map<int,map<int,SecByteBlock> >::iterator p;
+	p = dhSecretKeyMapGlobal.find(nodeId);
+	if(p != dhSecretKeyMapGlobal.end())
+	{
+		p->second.insert(pair<int,SecByteBlock>(destNodeId,key));
+		//dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,p->second));
+	}
+	else
+	{	
+		map<int,SecByteBlock> tempMap;	
+		tempMap.insert(pair<int,SecByteBlock>(destNodeId,key));
+		dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,tempMap));
+	}	
+	//dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,pair<int,SecByteBlock>(destNodeId,key)));
 }					
 

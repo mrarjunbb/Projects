@@ -23,7 +23,7 @@ void ReceivePacket (Ptr<Socket> socket)
 	s<<tagVal;
 	std::string ss(s.str());
 	   
-	NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
+//	NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
 }
 
 static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
@@ -39,7 +39,7 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
 		sendTag.SetSimpleValue(i);
 		sendPacket->AddPacketTag(sendTag); 
 		socket->Send (sendPacket);
-		NS_LOG_UNCOND ("Sending one packet: "+msgx);  
+	//	NS_LOG_UNCOND ("Sending one packet: "+msgx);  
 		Simulator::Schedule (pktInterval, &GenerateTraffic, 
 			       socket, pktSize,pktCount-1, pktInterval, i+1);
 	}
@@ -94,10 +94,10 @@ void ReceiveMessage (Ptr<Socket> socket)
 	cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
 	
 	// std::cout<<"message 4: "<<recMessage<<"\n";
-	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
+//	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
 
 	int value = atoi(recMessage.c_str());
-	std::cout<<"Value :"<<value<<"\n";
+//	std::cout<<"Value :"<<value<<"\n";
 	//put in node's map
 
 	appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
@@ -126,7 +126,7 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 			if(index1 < index2)
 			{			
 				int randomBit = randomBitGeneratorWithProb(0.5);
-				std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
+	//			std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
 
 				//put random bit in both the maps - src and dest maps
 
@@ -168,7 +168,7 @@ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
 {	
 	Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
 
-	std::cout<<"Node : "<<index<<" sending public key data\n";
+//	std::cout<<"Node : "<<index<<" sending public key data\n";
 	MyTag sendTag;
 	sendTag.SetSimpleValue(index);
 	sendPacket->AddPacketTag(sendTag);
@@ -186,7 +186,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
 	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
 	Ptr<Packet> recPacket = socket->Recv();
-	std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
+//	std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
 	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
 	recPacket->CopyData(buffer,recPacket->GetSize());
 
@@ -201,7 +201,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
 	int srcNodeIndex = atoi(ss.c_str());
 	std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());	        
 
-	std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
+//	std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
 
 	DH dh;
 	dh.AccessGroupParameters().Initialize(p, q, g);
@@ -244,7 +244,7 @@ void generateKeys(int index, ApplicationUtil *appUtil)
 		appUtil->putPublicKeyInMap(index,pub);
 		appUtil->setDhAgreedLength(dh.AgreedValueLength());
 
-		std::cout<<"Dh key length "<< index <<" : "<<dh.AgreedValueLength()<<"\n";
+	//	std::cout<<"Dh key length "<< index <<" : "<<dh.AgreedValueLength()<<"\n";
 	}
 	catch(const CryptoPP::Exception& e)
 	{
@@ -258,17 +258,10 @@ void generateKeys(int index, ApplicationUtil *appUtil)
 }
 
 void DisplayMessage(Ptr<Socket> socket)
-{
+{	
 	
-	std::cout<<"Display Message method ....\n";
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-	std::string Message = "1011";
-	
-	std::cout<<"Actual Message : "<<Message<<"\n";
-	int MessageLength = (int)strlen(Message.c_str()) ;
-	std::stringstream sharedMessage;
-	for(int rounds = 0; rounds < MessageLength; rounds++)
-	{		
+			
 		int result = 0;
 		int bit = Message.at(rounds)-48 ;
 		
@@ -290,12 +283,63 @@ void DisplayMessage(Ptr<Socket> socket)
 		}
 			
 		sharedMessage<<result;
-	}
 
-	std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
+	
 	socket->Close();
 }
-    
+  
+void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
+{
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance(); 
+	if(numRounds < MessageLength)
+	{
+	 rounds = numRounds;	
+		
+	//Symmetric key generation
+	for(int ind =0 ; ind < (int)numNodes; ind++)
+	{	
+		SecByteBlock priv, pub;
+		generateKeys(ind,appUtil);		
+	}
+
+	//send the public key to everyone
+	for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+		  
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+			if(index1 != index2)
+			{
+				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 81);
+				      recvNodeSink->Bind (localSocket);
+				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+				    				      
+				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
+				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				      sourceNodeSocket->Connect (remoteSocket);
+	Simulator::Schedule (Seconds (keyExchangeInterval), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
+			}	
+		}
+	}	
+      
+	waitTime +=  (2.0 * numNodes * keyExchangeInterval)  + 5.0;
+	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
+	Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
+//	std::cout<<"Wait time : "<<waitTime;
+	waitTime = 1.5 * waitTime + 5.0;
+	Simulator::Schedule (Seconds (waitTime), &DisplayMessage,source);
+//	std::cout<<"Wait time 2: "<<waitTime;
+	
+	Simulator::Schedule (Seconds (waitTime+5.0), &DCNET, source,waitTime+5.0, numRounds+1);
+	}
+	else
+	{
+		std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
+		socket->Close();
+		Simulator::Stop ();
+	}
+}  
     int main (int argc, char *argv[])
     {
 
@@ -339,7 +383,7 @@ void DisplayMessage(Ptr<Socket> socket)
       Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode", 
                           StringValue (phyMode));
     
-     NodeContainer c;
+     
       c.Create (numNodes);
 	for(int nodeind = 0; nodeind < numNodes;nodeind++)
 	{
@@ -399,9 +443,9 @@ void DisplayMessage(Ptr<Socket> socket)
       Ipv4AddressHelper ipv4;
       NS_LOG_INFO ("Assign IP Addresses.");
       ipv4.SetBase ("10.1.1.0", "255.255.255.0");
-      Ipv4InterfaceContainer i = ipv4.Assign (devices);
+      i = ipv4.Assign (devices);
     
-      TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+      tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
  
  /*     Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
@@ -413,42 +457,13 @@ void DisplayMessage(Ptr<Socket> socket)
       source->Connect (remote);
 
     */
-
-	//Symmetric key generation
-	for(int ind =0 ; ind < (int)numNodes; ind++)
-	{	
-		SecByteBlock priv, pub;
-		generateKeys(ind,appUtil);		
-	}
 	
-	//send the public key to everyone
-	for (int index1 = 0; index1 < (int)numNodes; index1++)
-	{
-		  
-		for (int index2 = 0; index2 < (int)numNodes; index2++)
-		{
-			if(index1 != index2)
-			{
-				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 81);
-				      recvNodeSink->Bind (localSocket);
-				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-				    				      
-				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
-				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-				      sourceNodeSocket->Connect (remoteSocket);
-	Simulator::Schedule (Seconds (keyExchangeInterval), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
-			}	
-		}
-	}	
-      
-	double waitTime = (2.0 * numNodes * keyExchangeInterval)  + 50.0;
+	std::cout<<"Actual Message : "<<Message<<"\n";
+	MessageLength = (int)strlen(Message.c_str()) ;
 	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
-	Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
-	std::cout<<"Wait time : "<<waitTime;
-	waitTime = 2 * waitTime + 100.0;
-	Simulator::Schedule (Seconds (waitTime), &DisplayMessage,source);
-	std::cout<<"Wait time 2: "<<waitTime;
+	Simulator::Schedule (Seconds (1.0), &DCNET, source, 1.0, 0);
+	
+	
 		
       if (tracing == true)
         {
@@ -466,9 +481,9 @@ void DisplayMessage(Ptr<Socket> socket)
   //    Simulator::Schedule (Seconds (1.0), &GenerateTraffic, source, packetSize, numPackets, interPacketInterval,0);
  
       // Output what we are doing
-      NS_LOG_UNCOND ("Testing from node " << sourceNode << " to " << sinkNode << " with grid distance " << distance);
+ //     NS_LOG_UNCOND ("Testing from node " << sourceNode << " to " << sinkNode << " with grid distance " << distance);
     
-      Simulator::Stop (Seconds (500.0));
+      //Simulator::Stop (Seconds (3000.0));
       Simulator::Run ();
       Simulator::Destroy ();
     

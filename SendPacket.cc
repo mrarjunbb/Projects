@@ -96,6 +96,12 @@ void ReceiveMessage (Ptr<Socket> socket)
 	// std::cout<<"message 4: "<<recMessage<<"\n";
 	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
 
+	int value = atoi(recMessage.c_str());
+	std::cout<<"Value :"<<value<<"\n";
+	//put in node's map
+
+	appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
+	appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
 }
 
 
@@ -122,6 +128,11 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 				int randomBit = randomBitGeneratorWithProb(0.5);
 				std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
 
+				//put random bit in both the maps - src and dest maps
+
+				appUtil->putSecretBitInGlobalMap(index1,index2,randomBit);
+				appUtil->putSecretBitInGlobalMap(index2,index1,randomBit);
+	
 				// Calculate a SHA-256 hash over the Diffie-Hellman session key
 				SecByteBlock key(SHA256::DIGESTSIZE);
 				SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(index1,index2), appUtil->getSecretKeyFromGlobalMap(index1,index2).size()); 
@@ -145,7 +156,7 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 				InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 82);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				sourceNodeSocket->Connect (remoteSocket);
-				Simulator::Schedule (Seconds (waitTime + 30.0), &SendMessage, sourceNodeSocket,message,index1,index2);
+				Simulator::Schedule (Seconds (waitTime + 10.0), &SendMessage, sourceNodeSocket,message,index1,index2);
 			}
 		}
 	}
@@ -246,7 +257,44 @@ void generateKeys(int index, ApplicationUtil *appUtil)
 	}		
 }
 
+void DisplayMessage(Ptr<Socket> socket)
+{
+	
+	std::cout<<"Display Message method ....\n";
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+	std::string Message = "1011";
+	
+	std::cout<<"Actual Message : "<<Message<<"\n";
+	int MessageLength = (int)strlen(Message.c_str()) ;
+	std::stringstream sharedMessage;
+	for(int rounds = 0; rounds < MessageLength; rounds++)
+	{		
+		int result = 0;
+		int bit = Message.at(rounds)-48 ;
+		
+		for(int index = 0; index < (int)numNodes ; index++)
+		{
+		
+			map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
+		
+			for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it)
+	    		{
+				//Exor the adjacent node bits stored in the map			
+				result ^= (int)it->second;
+			
+			}	
+			if(sender == index)	//exor result with message
+			{				
+				result ^= bit;	
+			}
+		}
+			
+		sharedMessage<<result;
+	}
 
+	std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
+	socket->Close();
+}
     
     int main (int argc, char *argv[])
     {
@@ -397,8 +445,11 @@ void generateKeys(int index, ApplicationUtil *appUtil)
 	double waitTime = (2.0 * numNodes * keyExchangeInterval)  + 50.0;
 	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
 	Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
-
-	
+	std::cout<<"Wait time : "<<waitTime;
+	waitTime = 2 * waitTime + 100.0;
+	Simulator::Schedule (Seconds (waitTime), &DisplayMessage,source);
+	std::cout<<"Wait time 2: "<<waitTime;
+		
       if (tracing == true)
         {
           AsciiTraceHelper ascii;
@@ -417,7 +468,7 @@ void generateKeys(int index, ApplicationUtil *appUtil)
       // Output what we are doing
       NS_LOG_UNCOND ("Testing from node " << sourceNode << " to " << sinkNode << " with grid distance " << distance);
     
-      Simulator::Stop (Seconds (300.0));
+      Simulator::Stop (Seconds (500.0));
       Simulator::Run ();
       Simulator::Destroy ();
     

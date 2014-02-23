@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include "crypto++/aes.h" 
+#include "crypto++/sha.h"
 #include "crypto++/modes.h"
 #include "crypto++/integer.h"
 #include "crypto++/osrng.h"
@@ -53,49 +54,67 @@ Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
 		"D662A4D18E73AFA32D779D5918D08BC8858F4DCEF97C2A24"
 		"855E6EEB22B3B2E5");
 
-Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");	
+Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
+std::string phyMode ("DsssRate1Mbps");
+double distance = 500;  // m
+uint32_t packetSize = 1000; // bytes
+uint32_t numPackets = 20;
+int numNodes = 3;  // by default, 5x5
+uint32_t sinkNode = 0;
+uint32_t sourceNode = 2;
+double interval = 1.0; // seconds
+double keyExchangeInterval = 10.0; // seconds
+bool verbose = false;
+bool tracing = true;
+int messageLen=0;	
+
+int aesKeyLength = SHA256::DIGESTSIZE;
+AutoSeededRandomPool rnd;
+byte iv[AES::BLOCKSIZE];	
+SecByteBlock key(SHA256::DIGESTSIZE);
 static std::string msgs[20];
 
 class ApplicationUtil
 {	
-	private:
-	 static bool instanceFlag;
-	int dhAgreedLength;
-    	static ApplicationUtil *appUtil;
-    	ApplicationUtil()
-    	{
-       	 //private constructor
-    	}
+private:
+ static bool instanceFlag;
+int dhAgreedLength;
+static ApplicationUtil *appUtil;
+ApplicationUtil()
+{
+ //private constructor
+}
 
-		map<int,SecByteBlock> publicKeyMap;
-		map<int,SecByteBlock> privateKeyMap;
-		map<int,SecByteBlock> dhSecretKeyMapSub;
-		map<int,map<int,SecByteBlock> > dhSecretKeyMapGlobal;
-		map<Ptr<Node>,int> nodeMap;
-	public:
-		int getDhAgreedLength()
-		{
-			return dhAgreedLength;
-		}	
-		void setDhAgreedLength(int len)
-		{
-			dhAgreedLength = len;
-		}
-		SecByteBlock getPublicKeyFromMap(int nodeId);
-		void putPublicKeyInMap(int nodeId, SecByteBlock key);
-		SecByteBlock getPrivateKeyFromMap(int nodeId);
-		void putPrivateKeyInMap(int nodeId, SecByteBlock key);
-		SecByteBlock getSecretKeyFromGlobalMap(int nodeId,int destNodeId);
-		void putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key);
-		void putNodeInMap(Ptr<Node> node,int index);
-		int getNodeFromMap(Ptr<Node> node);
-		static ApplicationUtil* getInstance();	
+	map<int,SecByteBlock> publicKeyMap;
+	map<int,SecByteBlock> privateKeyMap;
+	map<int,SecByteBlock> dhSecretKeyMapSub;
+	map<int,map<int,SecByteBlock> > dhSecretKeyMapGlobal;
+	map<Ptr<Node>,int> nodeMap;
+public:
+	//static int publicKeyPairCount;
+	int getDhAgreedLength()
+	{
+		return dhAgreedLength;
+	}	
+	void setDhAgreedLength(int len)
+	{
+		dhAgreedLength = len;
+	}
+	SecByteBlock getPublicKeyFromMap(int nodeId);
+	void putPublicKeyInMap(int nodeId, SecByteBlock key);
+	SecByteBlock getPrivateKeyFromMap(int nodeId);
+	void putPrivateKeyInMap(int nodeId, SecByteBlock key);
+	SecByteBlock getSecretKeyFromGlobalMap(int nodeId,int destNodeId);
+	void putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key);
+	void putNodeInMap(Ptr<Node> node,int index);
+	int getNodeFromMap(Ptr<Node> node);
+	static ApplicationUtil* getInstance();	
 
-	        ~ApplicationUtil()
-	        {
-		  instanceFlag = false;
-	        }
+        ~ApplicationUtil()
+        {
+	  instanceFlag = false;
+        }
 };
 bool ApplicationUtil::instanceFlag = false;
 ApplicationUtil* ApplicationUtil::appUtil = NULL;
@@ -103,7 +122,8 @@ ApplicationUtil* ApplicationUtil::appUtil = NULL;
 ApplicationUtil* ApplicationUtil::getInstance()
 {
 	if(!instanceFlag)
-        {
+        {		
+		//publicKeyPairCount = 0;
 		appUtil = new ApplicationUtil();
 		instanceFlag = true;
 	}

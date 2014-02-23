@@ -56,8 +56,16 @@ Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
 
 Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
-int sender = 0;
+TypeId tid;
+Ipv4InterfaceContainer i;
+NodeContainer c;
 
+int rounds = 0;
+int MessageLength = 0;
+double waitTime = 0;
+std::stringstream sharedMessage;
+int sender = 0;
+std::string Message = "1011111";
 std::string phyMode ("DsssRate1Mbps");
 double distance = 500;  // m
 uint32_t packetSize = 1000; // bytes
@@ -66,7 +74,7 @@ int numNodes = 3;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
-double keyExchangeInterval = 10.0; // seconds
+double keyExchangeInterval = 5.0; // seconds
 bool verbose = false;
 bool tracing = true;
 int messageLen=0;	

@@ -56,6 +56,8 @@ Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
 
 Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
+int sender = 0;
+
 std::string phyMode ("DsssRate1Mbps");
 double distance = 500;  // m
 uint32_t packetSize = 1000; // bytes
@@ -90,6 +92,8 @@ ApplicationUtil()
 	map<int,SecByteBlock> privateKeyMap;
 	map<int,SecByteBlock> dhSecretKeyMapSub;
 	map<int,map<int,SecByteBlock> > dhSecretKeyMapGlobal;
+	map<int,int> dhSecretBitMapSub;
+	map<int,map<int,int> > dhSecretBitMapGlobal;
 	map<Ptr<Node>,int> nodeMap;
 public:
 	//static int publicKeyPairCount;
@@ -107,10 +111,15 @@ public:
 	void putPrivateKeyInMap(int nodeId, SecByteBlock key);
 	SecByteBlock getSecretKeyFromGlobalMap(int nodeId,int destNodeId);
 	void putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key);
+
+	int getSecretBitFromGlobalMap(int nodeId,int destNodeId);
+	void putSecretBitInGlobalMap(int nodeId, int destNodeId, int value);
+	map<int,int> getSecretBitSubMap(int nodeId);
+
 	void putNodeInMap(Ptr<Node> node,int index);
 	int getNodeFromMap(Ptr<Node> node);
 	static ApplicationUtil* getInstance();	
-
+	
         ~ApplicationUtil()
         {
 	  instanceFlag = false;
@@ -207,7 +216,7 @@ void ApplicationUtil::putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByt
 	if(p != dhSecretKeyMapGlobal.end())
 	{
 		p->second.insert(pair<int,SecByteBlock>(destNodeId,key));
-		//dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,p->second));
+		
 	}
 	else
 	{	
@@ -215,6 +224,57 @@ void ApplicationUtil::putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByt
 		tempMap.insert(pair<int,SecByteBlock>(destNodeId,key));
 		dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,tempMap));
 	}	
-	//dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,pair<int,SecByteBlock>(destNodeId,key)));
+	
+}	
+
+int ApplicationUtil::getSecretBitFromGlobalMap(int nodeId, int destNodeId)
+{
+
+	map<int,map<int,int> >::iterator p;
+	p = dhSecretBitMapGlobal.find(nodeId);
+
+	if(p != dhSecretBitMapGlobal.end())
+	{
+		map<int,int>::iterator p1;
+		p1 = p->second.find(destNodeId);
+		if(p1 != dhSecretBitMapSub.end())
+			return p1->second;
+		else 
+		{
+			std::cout<<"hello";
+			return -99;
+		}
+	}
+	else 
+		{
+			std::cout<<"hello1";
+			return -99;
+		}	
+}
+
+void ApplicationUtil::putSecretBitInGlobalMap(int nodeId, int destNodeId, int value)
+{
+
+	map<int,map<int,int> >::iterator p;
+	p = dhSecretBitMapGlobal.find(nodeId);
+	if(p != dhSecretBitMapGlobal.end())
+	{
+		p->second.insert(pair<int,int>(destNodeId,value));
+		
+	}
+	else
+	{	
+		map<int,int> tempMap;	
+		tempMap.insert(pair<int,int>(destNodeId,value));
+		dhSecretBitMapGlobal.insert(pair<int,map<int,int> >(nodeId,tempMap));
+	}	
+	
 }					
 
+map<int,int> ApplicationUtil::getSecretBitSubMap(int nodeId)
+{
+	map<int,map<int,int> >::iterator p;
+	p = dhSecretBitMapGlobal.find(nodeId);
+	
+	return p->second;
+}

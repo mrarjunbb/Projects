@@ -1,129 +1,208 @@
 #include "ApplicationUtil.h"
-
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
-
- 
-     void ReceivePacket (Ptr<Socket> socket)
-     {
-          Ptr<Packet> recPacket = socket->Recv();
-          uint8_t *buffer = new uint8_t[recPacket->GetSize()];
-          recPacket->CopyData(buffer,recPacket->GetSize());
-          std::string recData = std::string((char*)buffer);
-          
-          MyTag recTag;
-          recPacket->PeekPacketTag(recTag);
-       	  int tagVal =int(recTag.GetSimpleValue());
-          std::ostringstream s;
-          s<<tagVal;
-          std::string ss(s.str());
-                   
-          NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
-     }
-
-     static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
-                                  uint32_t pktCount, Time pktInterval , int i)
-     {
-      if (pktCount > 0)
-        {
-          std::string msgx = msgs[i]; 
-
-          Ptr<Packet> sendPacket =
-                  Create<Packet> ((uint8_t*)msgx.c_str(),pktSize);
-
-          MyTag sendTag;
-          sendTag.SetSimpleValue(i);
-          sendPacket->AddPacketTag(sendTag); 
-          socket->Send (sendPacket);
-	 NS_LOG_UNCOND ("Sending one packet: "+msgx);  
-           Simulator::Schedule (pktInterval, &GenerateTraffic, 
-                               socket, pktSize,pktCount-1, pktInterval, i+1);
-        }
-      else
-        {
-          socket->Close ();
-        }
-    }
 
 std::string hexStr(byte *data, int len)
 {
-    std::stringstream ss;
-    ss<<std::hex;
-    for(int i(0);i<len;++i)
-        ss<<(int)data[i];
-    return ss.str();
+	std::stringstream ss;
+	ss<<std::hex;
+	for(int i(0);i<len;++i)
+	ss<<(int)data[i];
+	return ss.str();
 }
-  static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
-  {	
-	//NS_LOG_UNCOND("Inside Send Public Key method\n");
-	
+void ReceivePacket (Ptr<Socket> socket)
+{
+	Ptr<Packet> recPacket = socket->Recv();
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	recPacket->CopyData(buffer,recPacket->GetSize());
+	std::string recData = std::string((char*)buffer);
+
+	MyTag recTag;
+	recPacket->PeekPacketTag(recTag);
+	int tagVal =int(recTag.GetSimpleValue());
+	std::ostringstream s;
+	s<<tagVal;
+	std::string ss(s.str());
+	   
+	NS_LOG_UNCOND ("Received one packet: Data: " +recData+"   TagID: "+ss);
+}
+
+static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize, 
+                  uint32_t pktCount, Time pktInterval , int i)
+{
+	if (pktCount > 0)
+	{
+		std::string msgx = msgs[i]; 
+
+		Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)msgx.c_str(),pktSize);
+
+		MyTag sendTag;
+		sendTag.SetSimpleValue(i);
+		sendPacket->AddPacketTag(sendTag); 
+		socket->Send (sendPacket);
+		NS_LOG_UNCOND ("Sending one packet: "+msgx);  
+		Simulator::Schedule (pktInterval, &GenerateTraffic, 
+			       socket, pktSize,pktCount-1, pktInterval, i+1);
+	}
+	else
+	{
+		socket->Close ();
+	}
+}
+
+
+static void SendMessage (Ptr<Socket> socket, std::string message, int index, int dest)
+{
 	Ptr<Packet> sendPacket =
-                  Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
+	Create<Packet> ((uint8_t*)message.c_str(),message.size());
+
+	MyTag sendTag;
+	sendTag.SetSimpleValue(index);
+	sendPacket->AddPacketTag(sendTag); 
+	socket->Send (sendPacket);
+	socket->Close ();
+}
+
+void ReceiveMessage (Ptr<Socket> socket)
+{
+	Ptr<Packet> recPacket = socket->Recv();
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+
+	Ptr<Node> recvnode = socket->GetNode();
+	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	recPacket->CopyData(buffer,recPacket->GetSize());
+
+	std::string recMessage = std::string((char*)buffer);
+	recMessage = recMessage.substr (0,messageLen-1);
+
+	MyTag recTag;
+	recPacket->PeekPacketTag(recTag);
+	int srcNodeIndex =int(recTag.GetSimpleValue());
+	std::ostringstream s;
+	s<<srcNodeIndex;
+	std::string ss(s.str());
+	std::ostringstream s1;
+	s1<<recNodeIndex;
+	std::string ss1(s1.str());
+
+	SecByteBlock key(SHA256::DIGESTSIZE);
+	SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex), appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex).size()); 
+
+	//Decryption using the Shared secret key
+	CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
+	cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
+	
+	// std::cout<<"message 4: "<<recMessage<<"\n";
+	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
+
+}
+
+
+int randomBitGeneratorWithProb(double p) 
+{
+	double rndDouble = (double)rand() / RAND_MAX;
+	return rndDouble > p;
+}
+
+static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4InterfaceContainer i, double waitTime)	
+{
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+	// Generate a random IV
+	rnd.GenerateBlock(iv, AES::BLOCKSIZE);
+	
+	//sharing the random bit using dh secret key
+	for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+			if(index1 < index2)
+			{			
+				int randomBit = randomBitGeneratorWithProb(0.5);
+				std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
+
+				// Calculate a SHA-256 hash over the Diffie-Hellman session key
+				SecByteBlock key(SHA256::DIGESTSIZE);
+				SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(index1,index2), appUtil->getSecretKeyFromGlobalMap(index1,index2).size()); 
+
+				std::ostringstream ss;
+				ss << randomBit;
+				std::string message = ss.str();
+				messageLen = (int)strlen(message.c_str()) + 1;
+
+				// Encrypt
+
+				CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
+				cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
+				
+				//Send the encrypted message
+				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+				InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 82);
+				recvNodeSink->Bind (localSocket);
+				recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+							      
+				InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 82);
+				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				sourceNodeSocket->Connect (remoteSocket);
+				Simulator::Schedule (Seconds (waitTime + 30.0), &SendMessage, sourceNodeSocket,message,index1,index2);
+			}
+		}
+	}
+
+
+}
+
+static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
+{	
+	Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
 
 	std::cout<<"Node : "<<index<<" sending public key data\n";
 	MyTag sendTag;
-          sendTag.SetSimpleValue(index);
-          sendPacket->AddPacketTag(sendTag);
+	sendTag.SetSimpleValue(index);
+	sendPacket->AddPacketTag(sendTag);
 
 	socket->Send(sendPacket);
 	std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
- 	//NS_LOG_UNCOND ("Sending Public Key: "+sendData); 
-	
-	socket->Close();
-  }
 
-  void ReceivePublicKey (Ptr<Socket> socket)
-  {
+	socket->Close();
+}
+
+void ReceivePublicKey (Ptr<Socket> socket)
+{
 
 	Ptr<Node> recvnode = socket->GetNode();
-        int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
- 	Ptr<Packet> recPacket = socket->Recv();
-	 std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
-	 uint8_t *buffer = new uint8_t[recPacket->GetSize()];
-	 recPacket->CopyData(buffer,recPacket->GetSize());
-	
+	Ptr<Packet> recPacket = socket->Recv();
+	std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	recPacket->CopyData(buffer,recPacket->GetSize());
+
 	SecByteBlock pubKey((byte *)buffer,recPacket->GetSize()); 	
-	//ApplicationUtil::getInstance()
-
-
-	std::string recData = hexStr(buffer,recPacket->GetSize());     
-	//NS_LOG_UNCOND("Receiving Public Key : "+recData);
-
-	  MyTag recTag;
-          recPacket->PeekPacketTag(recTag);
-       	  int tagVal =int(recTag.GetSimpleValue());
-          std::ostringstream s;
-          s<<tagVal;
-          std::string ss(s.str());
-      //     int srcNodeIndex = atoi(ss.c_str());
-	std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
- 	//std::cout<<"Received Public Key: "<<recvData<<"\n";        
-	//std::cout<<"putting  into map of src node  "<<srcNodeIndex<<" and dest node "<<recNodeIndex<<" : "<<recvData<<"\n";        
-	  
-          std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
-
-	//compute DH symmetric secret key
-
-	/*
-	ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(srcNodeIndex,recNodeIndex,pubKey);
-	SecByteBlock pubbbb = ApplicationUtil::getInstance()->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex);
-	std::string recvData1 = hexStr(pubbbb.BytePtr(),pubbbb.SizeInBytes());
- 	std::cout<<"Getting from map of src node  "<<srcNodeIndex<<" and dest node "<<recNodeIndex<<" : "<<recvData1<<"\n";
-	*/
 	
+	MyTag recTag;
+	recPacket->PeekPacketTag(recTag);
+	int tagVal =int(recTag.GetSimpleValue());
+	std::ostringstream s;
+	s<<tagVal;
+	std::string ss(s.str());
+	int srcNodeIndex = atoi(ss.c_str());
+	std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());	        
+
+	std::cout<<"Node : "<<recNodeIndex<<"  from Node TagID: "<<ss<<"\n";
+
 	DH dh;
 	dh.AccessGroupParameters().Initialize(p, q, g);
 	SecByteBlock sharedKey(ApplicationUtil::getInstance()->getDhAgreedLength());
-	
-	dh.Agree(sharedKey, ApplicationUtil::getInstance()->getPrivateKeyFromMap(recNodeIndex),pubKey);	
-	
-	ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
-	
-		
-  }
 
-    void generateKeys(int index, ApplicationUtil *appUtil)
-    {
+	dh.Agree(sharedKey, ApplicationUtil::getInstance()->getPrivateKeyFromMap(recNodeIndex),pubKey);	
+
+	ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
+}
+
+void generateKeys(int index, ApplicationUtil *appUtil)
+{
 	try{
 		DH dh;
 		AutoSeededRandomPool rnd;
@@ -137,8 +216,7 @@ std::string hexStr(byte *data, int len)
 		p = dh.GetGroupParameters().GetModulus();
 		q = dh.GetGroupParameters().GetSubgroupOrder();
 		g = dh.GetGroupParameters().GetGenerator();
-
-		// http://groups.google.com/group/sci.crypt/browse_thread/thread/7dc7eeb04a09f0ce
+		
 		Integer v = ModularExponentiation(g, q, p);
 		if(v != Integer::One())
 			throw runtime_error("Failed to verify order of the subgroup");
@@ -154,9 +232,9 @@ std::string hexStr(byte *data, int len)
 		appUtil->putPrivateKeyInMap(index,priv);
 		appUtil->putPublicKeyInMap(index,pub);
 		appUtil->setDhAgreedLength(dh.AgreedValueLength());
-	
+
 		std::cout<<"Dh key length "<< index <<" : "<<dh.AgreedValueLength()<<"\n";
-    }
+	}
 	catch(const CryptoPP::Exception& e)
 	{
 		std::cerr << "Crypto error : "<< e.what() << std::endl;
@@ -169,16 +247,11 @@ std::string hexStr(byte *data, int len)
 }
 
 
-int randomWithProb(double p) {
-    double rndDouble = (double)rand() / RAND_MAX;
-    return rndDouble > p;
-}
-
     
     int main (int argc, char *argv[])
     {
 
-	NS_LOG_UNCOND("Inside Main");
+      NS_LOG_UNCOND("Inside Main");
       msgs[0]="UCLA";
       msgs[1]="MIT"; msgs[2]="Stanford"; msgs[3]="Berkley";
       msgs[4]="UC Irvine"; msgs[5]="UC San Diego"; msgs[6]="USC";
@@ -192,16 +265,6 @@ int randomWithProb(double p) {
 
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();     
 
-      std::string phyMode ("DsssRate1Mbps");
-      double distance = 500;  // m
-      uint32_t packetSize = 1000; // bytes
-      uint32_t numPackets = 20;
-      int numNodes = 3;  // by default, 5x5
-      uint32_t sinkNode = 0;
-      uint32_t sourceNode = 2;
-      double interval = 1.0; // seconds
-      bool verbose = false;
-      bool tracing = true;
     
       CommandLine cmd;
     
@@ -326,20 +389,16 @@ int randomWithProb(double p) {
 				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
-	Simulator::Schedule (Seconds (10.0), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
+	Simulator::Schedule (Seconds (keyExchangeInterval), &SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
 			}	
 		}
 	}	
+      
+	double waitTime = (2.0 * numNodes * keyExchangeInterval)  + 50.0;
+	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
+	Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
 
-	//sharing the random bit using dh secret key
-	for (int index1 = 0; index1 < (int)numNodes; index1++)
-	{
-		  
-		for (int index2 = 0; index2 < (int)numNodes; index2++)
-		{
-		}
-	}
-
+	
       if (tracing == true)
         {
           AsciiTraceHelper ascii;

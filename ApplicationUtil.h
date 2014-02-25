@@ -8,6 +8,7 @@
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ipv4-list-routing-helper.h"
 #include "MyTag.h"
+#include "ns3/nstime.h"
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
@@ -60,12 +61,16 @@ TypeId tid;
 Ipv4InterfaceContainer i;
 NodeContainer c;
 
+//int nodeSpeed = 20; //in m/s
+//int nodePause = 0; //in s
+//double txp = 7.5;
+
 int rounds = 0;
 int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "1011111";
+std::string Message = "1";
 std::string phyMode ("DsssRate1Mbps");
 double distance = 500;  // m
 uint32_t packetSize = 1000; // bytes
@@ -85,16 +90,30 @@ byte iv[AES::BLOCKSIZE];
 SecByteBlock key(SHA256::DIGESTSIZE);
 static std::string msgs[20];
 
+//measurement variables
+
+int stage1SentPacketCount = 0;
+int stage2SentPacketCount = 0;
+int stage1RecvPacketCount = 0;
+int stage2RecvPacketCount = 0;
+double stage1Latency;
+double stage2Latency;
+std::vector<Time> stage1StartTime;
+std::vector<Time> stage2StartTime;
+std::vector<Time> stage1EndTime;
+std::vector<Time> stage2EndTime;
+double goodPut;
+
 class ApplicationUtil
 {	
-private:
- static bool instanceFlag;
-int dhAgreedLength;
-static ApplicationUtil *appUtil;
-ApplicationUtil()
-{
- //private constructor
-}
+	private:
+	static bool instanceFlag;
+	int dhAgreedLength;
+	static ApplicationUtil *appUtil;
+	ApplicationUtil()
+	{
+	 //private constructor
+	}
 
 	map<int,SecByteBlock> publicKeyMap;
 	map<int,SecByteBlock> privateKeyMap;

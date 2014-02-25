@@ -1,6 +1,3 @@
-//wscript for integrating crypto++ library with ns3
-
-
 ## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 
 # python lib modules
@@ -300,7 +297,8 @@ def configure(conf):
 
     env = conf.env
 
-    conf.env['lpp'] crypto= conf.check(mandatory=True, lib='cryptopp', uselib_store='cryptopp')
+    conf.env['lpp'] 
+    crypto= conf.check(mandatory=True, lib='cryptopp', uselib_store='cryptopp')
     conf.env.append_value('CXXDEFINES', 'ENABLE_CRYPTOPP')
     conf.env.append_value('CCDEFINES', 'ENABLE_CRYPTOPP')
 

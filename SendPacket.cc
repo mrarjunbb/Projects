@@ -59,12 +59,14 @@ static void SendMessage (Ptr<Socket> socket, std::string message, int index, int
 	sendTag.SetSimpleValue(index);
 	sendPacket->AddPacketTag(sendTag); 
 	socket->Send (sendPacket);
+	stage2SentPacketCount += 1;//increment sent packet counter for stage2	
 	socket->Close ();
 }
 
 void ReceiveMessage (Ptr<Socket> socket)
 {
-	Ptr<Packet> recPacket = socket->Recv();
+	Ptr<Packet> recPacket = socket->Recv();	
+	stage2RecvPacketCount += 1;//increment recv packet counter for stage2
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 
 	Ptr<Node> recvnode = socket->GetNode();
@@ -113,6 +115,8 @@ int randomBitGeneratorWithProb(double p)
 
 static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4InterfaceContainer i, double waitTime)	
 {
+	stage1EndTime.push_back(Simulator::Now());
+	stage2StartTime.push_back(Simulator::Now());
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 	// Generate a random IV
 	rnd.GenerateBlock(iv, AES::BLOCKSIZE);
@@ -141,7 +145,7 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 				ss << randomBit;
 				std::string message = ss.str();
 				messageLen = (int)strlen(message.c_str()) + 1;
-
+		
 				// Encrypt
 
 				CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
@@ -156,6 +160,7 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 				InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 82);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				sourceNodeSocket->Connect (remoteSocket);
+				//waitTime += 20.0;
 				Simulator::Schedule (Seconds (waitTime + 10.0), &SendMessage, sourceNodeSocket,message,index1,index2);
 			}
 		}
@@ -167,13 +172,14 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
 static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
 {	
 	Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
-
+	
 //	std::cout<<"Node : "<<index<<" sending public key data\n";
 	MyTag sendTag;
 	sendTag.SetSimpleValue(index);
 	sendPacket->AddPacketTag(sendTag);
 
 	socket->Send(sendPacket);
+	stage1SentPacketCount += 1;//increment sent packet counter for stage1 
 	std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
 	socket->Close();
@@ -186,6 +192,8 @@ void ReceivePublicKey (Ptr<Socket> socket)
 	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
 	Ptr<Packet> recPacket = socket->Recv();
+	stage1RecvPacketCount +=1; //increment received packet count for stage 1
+
 //	std::cout<<"Node receiving: "<<recNodeIndex<<"\n";
 	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
 	recPacket->CopyData(buffer,recPacket->GetSize());
@@ -258,8 +266,7 @@ void generateKeys(int index, ApplicationUtil *appUtil)
 }
 
 void DisplayMessage(Ptr<Socket> socket)
-{	
-	
+{		
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 			
 		int result = 0;
@@ -288,13 +295,36 @@ void DisplayMessage(Ptr<Socket> socket)
 	socket->Close();
 }
   
+void DisplayMeasurements()
+{
+	std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
+	std::cout<<"Sent Packet Count Stage 1: "<<stage1SentPacketCount<<"\n";
+	std::cout<<"Sent Packet Count Stage 2: "<<stage2SentPacketCount<<"\n";
+	std::cout<<"Sent Recv Count Stage 1: "<<stage1RecvPacketCount<<"\n";
+	std::cout<<"Sent Recv Count Stage 2: "<<stage2RecvPacketCount<<"\n";
+
+	std::cout<<stage1EndTime.front().GetSeconds()<<"\n";
+	std::cout<<stage1StartTime.front().GetSeconds()<<"\n";
+	stage1Latency = stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds();
+	std::cout<<"Stage 1 latency: "<<stage1Latency<<"\n";
+
+	stage2Latency = stage2EndTime.front().GetSeconds() - stage2StartTime.front().GetSeconds();
+	std::cout<<"Stage 2 latency: "<<stage2Latency<<"\n";
+	
+	goodPut = (stage1Latency + stage2Latency) * MessageLength;
+	std::cout<<"goodPut: "<<goodPut<<"\n";
+} 
+
 void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
 {
+	stage2EndTime.push_back(Simulator::Now());
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance(); 
 	if(numRounds < MessageLength)
 	{
 	 rounds = numRounds;	
-		
+	
+///////////////////////////////////////Stage1////////////////////////////////////////////
+	
 	//Symmetric key generation
 	for(int ind =0 ; ind < (int)numNodes; ind++)
 	{	
@@ -314,7 +344,7 @@ void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
 				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 81);
 				      recvNodeSink->Bind (localSocket);
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-				    				      
+									    				      
 				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
@@ -324,22 +354,28 @@ void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
 	}	
       
 	waitTime +=  (2.0 * numNodes * keyExchangeInterval)  + 5.0;
+
+///////////////////////////////////////Stage2////////////////////////////////////////////
+
 	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
 	Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
 //	std::cout<<"Wait time : "<<waitTime;
 	waitTime = 1.5 * waitTime + 5.0;
 	Simulator::Schedule (Seconds (waitTime), &DisplayMessage,source);
 //	std::cout<<"Wait time 2: "<<waitTime;
-	
+	waitTime = 1.5 * waitTime + 5.0;
 	Simulator::Schedule (Seconds (waitTime+5.0), &DCNET, source,waitTime+5.0, numRounds+1);
 	}
 	else
-	{
-		std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
+	{	
+		stage2EndTime.erase(stage2EndTime.begin());
+		//stage2EndTime.push_back(Simulator::Now());
+		DisplayMeasurements();			
 		socket->Close();
 		Simulator::Stop ();
 	}
-}  
+}
+ 
     int main (int argc, char *argv[])
     {
 
@@ -413,11 +449,17 @@ void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
       wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                     "DataMode",StringValue (phyMode),
                                     "ControlMode",StringValue (phyMode));
+
+	
+ // wifiPhy.Set ("TxPowerStart",DoubleValue (txp));
+ // wifiPhy.Set ("TxPowerEnd", DoubleValue (txp));
       // Set it to adhoc mode
       wifiMac.SetType ("ns3::AdhocWifiMac");
       NetDeviceContainer devices = wifi.Install (wifiPhy, wifiMac, c);
-    
-      MobilityHelper mobility;
+ 
+
+
+        MobilityHelper mobility;
       mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                      "MinX", DoubleValue (0.0),
                                      "MinY", DoubleValue (0.0),
@@ -428,7 +470,39 @@ void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
       mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
       mobility.Install (c);
     
-      // Enable OLSR
+  
+/*
+
+
+	//changed mobility model
+
+	
+
+	MobilityHelper mobilityAdhoc;
+ 	 int64_t streamIndex = 0; // used to get consistent mobility across scenarios
+
+	  ObjectFactory pos;
+	  pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");
+	  pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=300.0]"));
+	  pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=1500.0]"));
+
+	  Ptr<PositionAllocator> taPositionAlloc = pos.Create ()->GetObject<PositionAllocator> ();
+	  streamIndex += taPositionAlloc->AssignStreams (streamIndex);
+
+	  std::stringstream ssSpeed;
+	  ssSpeed << "ns3::UniformRandomVariable[Min=0.0|Max=" << nodeSpeed << "]";
+	  std::stringstream ssPause;
+	  ssPause << "ns3::ConstantRandomVariable[Constant=" << nodePause << "]";
+	  mobilityAdhoc.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
+		                          "Speed", StringValue (ssSpeed.str ()),
+		                          "Pause", StringValue (ssPause.str ()),
+		                          "PositionAllocator", PointerValue (taPositionAlloc));
+	  mobilityAdhoc.SetPositionAllocator (taPositionAlloc);
+	  mobilityAdhoc.Install (c);
+	  streamIndex += mobilityAdhoc.AssignStreams (c, streamIndex);
+
+*/
+    // Enable OLSR
       OlsrHelper olsr;
       Ipv4StaticRoutingHelper staticRouting;
     
@@ -460,7 +534,9 @@ void DCNET(Ptr<Socket> socket, double waitTime, int numRounds)
 	
 	std::cout<<"Actual Message : "<<Message<<"\n";
 	MessageLength = (int)strlen(Message.c_str()) ;
+	std::cout<<"Message length:"<<MessageLength;
 	Ptr<Socket> source = Socket::CreateSocket (c.Get (0), tid);
+	stage1StartTime.push_back(Simulator::Now());
 	Simulator::Schedule (Seconds (1.0), &DCNET, source, 1.0, 0);
 	
 	

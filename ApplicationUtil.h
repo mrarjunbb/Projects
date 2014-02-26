@@ -7,6 +7,7 @@
 #include "ns3/olsr-helper.h"
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ipv4-list-routing-helper.h"
+#include "ns3/aodv-helper.h"
 #include "MyTag.h"
 #include "ns3/nstime.h"
 #include <cstdlib>
@@ -60,17 +61,19 @@ Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 TypeId tid;
 Ipv4InterfaceContainer i;
 NodeContainer c;
+Ptr<Socket> source;
 
 //int nodeSpeed = 20; //in m/s
 //int nodePause = 0; //in s
 //double txp = 7.5;
+
 
 int rounds = 0;
 int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "1";
+std::string Message = "10";
 std::string phyMode ("DsssRate1Mbps");
 double distance = 500;  // m
 uint32_t packetSize = 1000; // bytes
@@ -103,6 +106,11 @@ std::vector<Time> stage2StartTime;
 std::vector<Time> stage1EndTime;
 std::vector<Time> stage2EndTime;
 double goodPut;
+
+
+
+int publicKeyCounter = 0;
+int randomBitCounter = 0;
 
 class ApplicationUtil
 {	

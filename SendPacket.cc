@@ -533,7 +533,7 @@ void DCNET(Ptr<Socket> socket, int numRounds)
     
       Ipv4ListRoutingHelper list;
       list.Add (staticRouting, 0);
-      list.Add (olsr, 10);
+      //list.Add (olsr, 10);
 	//list.Add(aodv,10);
     
       InternetStackHelper internet;
@@ -574,7 +574,7 @@ void DCNET(Ptr<Socket> socket, int numRounds)
           wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
           // Trace routing tables
           Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
-          olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
+          //olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
     
           // To do-- enable an IP-level trace that shows forwarding events only
         }	

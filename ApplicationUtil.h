@@ -74,9 +74,9 @@ double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
 std::string Message = "10";
-std::string phyMode ("DsssRate1Mbps");
-double distance = 500;  // m
-uint32_t packetSize = 1000; // bytes
+std::string phyMode ("DsssRate11Mbps");
+double distance = 5;  // m
+uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 20;
 int numNodes = 3;  // by default, 5x5
 uint32_t sinkNode = 0;

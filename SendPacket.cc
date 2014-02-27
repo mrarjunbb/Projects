@@ -310,7 +310,7 @@ void DisplayMessage(Ptr<Socket> socket)
 	
 	socket->Close();
 	   publicKeyCounter = (numNodes * numNodes) - numNodes;
-	randomBitCounter = numNodes;
+	randomBitCounter = (numNodes * (numNodes-1)/2);
 	Simulator::ScheduleNow (&DCNET, source,rounds+1);
 }
   
@@ -415,7 +415,7 @@ void DCNET(Ptr<Socket> socket, int numRounds)
 	ApplicationUtil *appUtil = ApplicationUtil::getInstance();     
 
     publicKeyCounter = (numNodes * numNodes) - numNodes;
-	randomBitCounter = numNodes;
+	randomBitCounter = (numNodes * (numNodes-1)/2);
       CommandLine cmd;
 
     

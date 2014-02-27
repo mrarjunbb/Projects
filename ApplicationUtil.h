@@ -74,7 +74,7 @@ double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
 std::string Message = "10";
-std::string phyMode ("DsssRate11Mbps");
+std::string phyMode ("OfdmRate54Mbps");
 double distance = 5;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 20;

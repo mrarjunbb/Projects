@@ -78,7 +78,7 @@ std::string phyMode ("OfdmRate54Mbps");
 double distance = 5;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 20;
-int numNodes = 4;  // by default, 5x5
+int numNodes = 3;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds

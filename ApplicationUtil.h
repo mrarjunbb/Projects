@@ -73,12 +73,12 @@ int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "10";
+std::string Message = "101";
 std::string phyMode ("OfdmRate54Mbps");
 double distance = 5;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 20;
-int numNodes = 3;  // by default, 5x5
+int numNodes = 4;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
@@ -99,6 +99,7 @@ int stage1SentPacketCount = 0;
 int stage2SentPacketCount = 0;
 int stage1RecvPacketCount = 0;
 int stage2RecvPacketCount = 0;
+int AnnouncementPacketCount = 0;
 double stage1Latency;
 double stage2Latency;
 std::vector<Time> stage1StartTime;
@@ -130,7 +131,12 @@ class ApplicationUtil
 	map<int,int> dhSecretBitMapSub;
 	map<int,map<int,int> > dhSecretBitMapGlobal;
 	map<Ptr<Node>,int> nodeMap;
+	map<int,int> announcement;
+	map<int, int> receivedAnnouncementSubMap;
+	map<int, map<int, int> > receivedAnnouncement;
 public:
+
+
 	//static int publicKeyPairCount;
 	int getDhAgreedLength()
 	{
@@ -149,10 +155,17 @@ public:
 
 	int getSecretBitFromGlobalMap(int nodeId,int destNodeId);
 	void putSecretBitInGlobalMap(int nodeId, int destNodeId, int value);
+	void eraseSecretBitMapGlobal();
 	map<int,int> getSecretBitSubMap(int nodeId);
 
 	void putNodeInMap(Ptr<Node> node,int index);
 	int getNodeFromMap(Ptr<Node> node);
+void putAnnouncementInGlobalMap(int nodeId,int value);
+int getAnnouncement(int nodeId);
+void putAnnouncementInReceivedMap(int nodeId, int senderNode, int value);
+map<int, int> getAnnouncementSubMap(int nodeId);
+int getReceivedAnnouncement(int nodeId, int senderNodeId);
+
 	static ApplicationUtil* getInstance();	
 	
         ~ApplicationUtil()
@@ -294,8 +307,12 @@ void ApplicationUtil::putSecretBitInGlobalMap(int nodeId, int destNodeId, int va
 	p = dhSecretBitMapGlobal.find(nodeId);
 	if(p != dhSecretBitMapGlobal.end())
 	{
-		p->second.insert(pair<int,int>(destNodeId,value));
-		
+		map<int,int>::iterator p1;
+		p1 = p->second.find(destNodeId);	
+		if(p1 != p->second.end())
+			p->second[destNodeId] = value;
+		else
+			p->second.insert(pair<int,int>(destNodeId,value));		
 	}
 	else
 	{	
@@ -310,6 +327,91 @@ map<int,int> ApplicationUtil::getSecretBitSubMap(int nodeId)
 {
 	map<int,map<int,int> >::iterator p;
 	p = dhSecretBitMapGlobal.find(nodeId);
+		
+	return p->second;
+}
+
+void ApplicationUtil::eraseSecretBitMapGlobal()
+{
+	 map<int,map<int,int> >::iterator p;
+	 dhSecretBitMapGlobal.erase ( p, dhSecretBitMapGlobal.end() );
+}
+
+//swati
+void ApplicationUtil::putAnnouncementInGlobalMap(int nodeId, int value)
+{
+
+	//std::cout<<"Node "<<nodeId<<" stores "<<value<<"\n";
+
+	map<int,int>::iterator p;
+	p = announcement.find(nodeId);
+	if(p != announcement.end())
+		announcement[nodeId] = value;
+	else
+	announcement.insert(pair<int,int>(nodeId,value));
+//	std::cout<<"Finds "<<ApplicationUtil::getAnnouncement(nodeId)<<"\n";
+}					
+
+int ApplicationUtil::getAnnouncement(int nodeId)
+{
+	map<int,int>::iterator p;
+	p = announcement.find(nodeId);
+	//std::cout<<"Node "<<nodeId<<" stores "<<p->second<<"\n";
+	return p->second;
+}
+void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, int value)
+{
+	map<int,map<int,int> >::iterator p;
+	p = receivedAnnouncement.find(nodeId);
+	if(p != receivedAnnouncement.end())
+	{
+		map<int,int>::iterator p1;
+		p1 = p->second.find(senderNode);	
+		if(p1 != p->second.end())
+			p->second[senderNode] = value;
+		else
+		p->second.insert(pair<int,int>(senderNode,value));
+
+	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
+		
+	}
+	else
+	{	
+		map<int,int> tempMap;	
+		tempMap.insert(pair<int,int>(senderNode,value));
+		receivedAnnouncement.insert(pair<int,map<int,int> >(nodeId,tempMap));
+	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
+	}
+}
+int ApplicationUtil::getReceivedAnnouncement(int nodeId, int senderNodeId)
+{
+	map<int,map<int,int> >::iterator p;
+	p = receivedAnnouncement.find(nodeId);
+
+	if(p != receivedAnnouncement.end())
+	{
+		map<int,int>::iterator p1;
+		p1 = p->second.find(senderNodeId);
+		if(p1 != receivedAnnouncementSubMap.end())
+			return p1->second;
+		else 
+		{
+			std::cout<<"hello";
+			return -99;
+		}
+	}
+	else 
+		{
+			std::cout<<"hello1";
+			return -99;
+		}	
+}
+
+
+map<int,int> ApplicationUtil::getAnnouncementSubMap(int nodeId)
+{
+	map<int,map<int,int> >::iterator p;
+	p = receivedAnnouncement.find(nodeId);
 	
 	return p->second;
 }

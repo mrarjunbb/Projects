@@ -12,6 +12,46 @@ std::string hexStr(byte *data, int len)
     return ss.str();
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 static void SendMessage (Ptr<Socket> socket, std::string message, int index, int dest)
 {
     Ptr<Packet> sendPacket =
@@ -83,6 +123,7 @@ int randomBitGeneratorWithProb(double p)
 
 static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
 {
+publicKeyCounter = (numNodes * numNodes) - numNodes;
     stage1EndTime.push_back(Simulator::Now());
     stage2StartTime.push_back(Simulator::Now());
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -98,7 +139,7 @@ static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4In
             if(index1 < index2)
             {
                 int randomBit = randomBitGeneratorWithProb(0.5);
-                //			std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
+                std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
 
                 //put random bit in both the maps - src and dest maps
 
@@ -154,7 +195,7 @@ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
 
 void ReceivePublicKey (Ptr<Socket> socket)
 {
-    std::cout<<"Receive public key\n";
+ //   std::cout<<"Receive public key\n";
     Ptr<Node> recvnode = socket->GetNode();
     int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
@@ -241,37 +282,133 @@ void generateKeys(int index, ApplicationUtil *appUtil)
     }
 }
 
+//sending and receiving announcements
+static void SendAnnouncement (Ptr<Socket> socket, int result, int index)
+{	
+	std::ostringstream ss;
+	ss << result;
+	std::string message = ss.str();
+	Ptr<Packet> sendPacket =
+	Create<Packet> ((uint8_t*)message.c_str(),message.size());
+	//Ptr<Packet> sendPacket = Create<Packet> (result);
+	
+	MyTag sendTag;
+	sendTag.SetSimpleValue(index);
+	sendPacket->AddPacketTag(sendTag);
+
+	socket->Send(sendPacket);
+	
+	
+	//std::cout<<"Sending announcement for "<<index<<":"<<message<<"Packet count:"<<AnnouncementPacketCount<<"\n";
+	socket->Close();
+}
+
+void ReceiveAnnouncement (Ptr<Socket> socket)
+{
+	AnnouncementPacketCount-=1;
+	//std::cout<<"Hello\n";
+	Ptr<Packet> recPacket = socket->Recv();	
+	//stage2RecvPacketCount += 1;//increment recv packet counter for stage2
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+	//std::cout<<"Receiving announcement"<<"\n";
+	Ptr<Node> recvnode = socket->GetNode();
+	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	recPacket->CopyData(buffer,recPacket->GetSize());
+	
+	std::string recMessage = std::string((char*)buffer);
+	recMessage = recMessage.substr (0,messageLen-1);
+
+	MyTag recTag;
+	recPacket->PeekPacketTag(recTag);
+	int srcNodeIndex =int(recTag.GetSimpleValue());
+	//std::cout<<"Putting announcement in map"<<"\n";
+	appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
+	if(AnnouncementPacketCount==0)
+	{
+	//	std::cout<<"Hello\n";
+		int x=0;
+		//sharedMessage<<resultBit;
+		//xoring outputs
+
+		for(int index=0;index<(int)numNodes;index++)
+		{
+			 x ^= appUtil->getAnnouncement(index);			
+		 		
+		}
+		
+	
+
+		sharedMessage<<x;		
+		AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+		publicKeyCounter = (numNodes * numNodes) - numNodes;
+		randomBitCounter = (numNodes * (numNodes-1)/2);
+		Simulator::ScheduleNow (&DCNET, source,rounds+1);
+	}
+}
+
 void DisplayMessage(Ptr<Socket> socket)
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-
-    int result = 0;
+    
     int bit = Message.at(rounds)-48 ;
-
+	
+	std::cout<<"Current Round : "<<rounds<<" and current bit : "<<bit<<"\n";
     for(int index = 0; index < (int)numNodes ; index++)
     {
 
+		int result = 0;
         map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
 
         for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it)
         {
+
+	std::cout<<"Adj bits of node "<<index<<" : "<<(int)it->second<<"\n";
             //Exor the adjacent node bits stored in the map
             result ^= (int)it->second;
-
         }
         if(sender == index)	//exor result with message
         {
             result ^= bit;
         }
-    }
+	
+	std::cout<<"Result for Node "<<index<<" is : "<<result<<" in round "<<rounds<<"\n";
+		appUtil->putAnnouncementInGlobalMap(index, result);
 
-    sharedMessage<<result;
+	}
+	/*	for(int index=0;index<(int)numNodes;index++)
+		{
+			int r=appUtil->getAnnouncement(index);
+			//std::cout<<"Verifying node "<<index<<" announcement "<<r<<"\n";
+
+		}
+*/
+    //sharedMessage<<result;
+for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+		  
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+			if(index1 != index2)
+			{
+	
+				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),83);
+				      recvNodeSink->Bind (localSocket);
+				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
+									    				      
+				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 83);
+				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				      sourceNodeSocket->Connect (remoteSocket);
 
 
-    socket->Close();
-    publicKeyCounter = (numNodes * numNodes) - numNodes;
-    randomBitCounter = (numNodes * (numNodes-1)/2);
-    Simulator::ScheduleNow (&DCNET, source,rounds+1);
+	Simulator::ScheduleNow (&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
+				
+			}	
+		}
+	}
+
 }
 
 void DisplayMeasurements()
@@ -295,12 +432,14 @@ void DisplayMeasurements()
 void DCNET(Ptr<Socket> socket, int numRounds)
 {
     //numRounds++;
-
+	//std::cout<<"Debug : Inside dcnet\n";
     stage2EndTime.push_back(Simulator::Now());
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+
     if(numRounds < MessageLength)
     {
         rounds = numRounds;
+
 
 ///////////////////////////////////////Stage1////////////////////////////////////////////
 
@@ -319,17 +458,18 @@ void DCNET(Ptr<Socket> socket, int numRounds)
             {
                 if(index1 != index2)
                 {
-
+			
                     Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
                     InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),81);
                     recvNodeSink->Bind (localSocket);
                     recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-                    std::cout<<"before\n";
+                  //  std::cout<<"before\n";
                     InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
                     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                     sourceNodeSocket->Connect (remoteSocket);
                     Simulator::Schedule (Seconds(10.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
-                    std::cout<<"after\n";
+
+                  //  std::cout<<"after\n";
                 }
             }
         }
@@ -363,6 +503,7 @@ int main (int argc, char *argv[])
     NS_LOG_UNCOND("Inside Main");
 
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
 
     publicKeyCounter = (numNodes * numNodes) - numNodes;
     randomBitCounter = (numNodes * (numNodes-1)/2);
@@ -424,6 +565,10 @@ int main (int argc, char *argv[])
                                   "ControlMode",StringValue (phyMode));
 
 
+
+
+
+
     // Set it to adhoc mode
     wifiMac.SetType ("ns3::AdhocWifiMac");
     NetDeviceContainer devices = wifi.Install (wifiPhy, wifiMac, c);
@@ -440,10 +585,13 @@ int main (int argc, char *argv[])
     mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
 
+
     Ipv4StaticRoutingHelper staticRouting;
 
     Ipv4ListRoutingHelper list;
     list.Add (staticRouting, 0);
+
+
 
     InternetStackHelper internet;
     internet.SetRoutingHelper (list); // has effect on the next Install ()
@@ -456,11 +604,13 @@ int main (int argc, char *argv[])
 
     tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
+
     std::cout<<"Actual Message : "<<Message<<"\n";
     MessageLength = (int)strlen(Message.c_str()) ;
-    std::cout<<"Message length:"<<MessageLength;
+    std::cout<<"Message length:"<<MessageLength<<"\n";
     source = Socket::CreateSocket (c.Get (0), tid);
     stage1StartTime.push_back(Simulator::Now());
+
     Simulator::ScheduleNow (&DCNET, source, 0);
 
 
@@ -473,8 +623,15 @@ int main (int argc, char *argv[])
         // Trace routing tables
         Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
 
+
         // To do-- enable an IP-level trace that shows forwarding events only
     }
+
+
+
+
+
+
 
     //Simulator::Stop (Seconds (3000.0));
     Simulator::Run ();

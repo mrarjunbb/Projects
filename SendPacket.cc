@@ -14,44 +14,6 @@ std::string hexStr(byte *data, int len)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static void SendMessage (Ptr<Socket> socket, std::string message, int index, int dest)
 {
     Ptr<Packet> sendPacket =
@@ -162,11 +124,11 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 
                 //Send the encrypted message
                 Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-                InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 82);
+                InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
                 recvNodeSink->Bind (localSocket);
                 recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
 
-                InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 82);
+                InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9801);
                 Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                 sourceNodeSocket->Connect (remoteSocket);
                 //waitTime += 20.0;
@@ -181,7 +143,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
 {
     Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
-
+	std::cout<<"Debug : Inside dcnet send public key \n";
     MyTag sendTag;
     sendTag.SetSimpleValue(index);
     sendPacket->AddPacketTag(sendTag);
@@ -195,7 +157,7 @@ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
 
 void ReceivePublicKey (Ptr<Socket> socket)
 {
- //   std::cout<<"Receive public key\n";
+ std::cout<<"Debug : Inside dcnet receive public key \n";
     Ptr<Node> recvnode = socket->GetNode();
     int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
@@ -228,9 +190,10 @@ void ReceivePublicKey (Ptr<Socket> socket)
     ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
 
     publicKeyCounter--;
-
+	std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
     if(publicKeyCounter == 0)
     {
+	std::cout<<"Debug : calling simulator loop \n";
         Simulator::ScheduleNow (&SimulatorLoop, socket,tid,c,i);
     }
 
@@ -394,11 +357,11 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 			{
 	
 				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),83);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9802);
 				      recvNodeSink->Bind (localSocket);
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
 									    				      
-				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 83);
+				      InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9802);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
 
@@ -419,7 +382,7 @@ void DisplayMeasurements()
     std::cout<<"Sent Recv Count Stage 1: "<<stage1RecvPacketCount<<"\n";
     std::cout<<"Sent Recv Count Stage 2: "<<stage2RecvPacketCount<<"\n";
 
-    stage1Latency = stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds() - 10.0;
+    stage1Latency = stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds();
     std::cout<<"Stage 1 latency: "<<stage1Latency<<"\n";
 
     stage2Latency = stage2EndTime.front().GetSeconds() - stage2StartTime.front().GetSeconds();
@@ -427,12 +390,17 @@ void DisplayMeasurements()
 
     goodPut = (stage1Latency + stage2Latency) * MessageLength;
     std::cout<<"goodPut: "<<goodPut<<"\n";
+
+totalTimeEnd = Simulator::Now();
+totalRunningTime = totalTimeEnd.GetSeconds() - totalTimeStart.GetSeconds();
+std::cout<<"Total Running Time: "<<totalRunningTime<<"\n";
+ 
 }
 
 void DCNET(Ptr<Socket> socket, int numRounds)
 {
     //numRounds++;
-	//std::cout<<"Debug : Inside dcnet\n";
+	std::cout<<"Debug : Inside dcnet\n";
     stage2EndTime.push_back(Simulator::Now());
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 
@@ -458,16 +426,16 @@ void DCNET(Ptr<Socket> socket, int numRounds)
             {
                 if(index1 != index2)
                 {
-			
+			std::cout<<"Debug : Inside dcnet  1\n";
                     Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-                    InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),81);
+                    InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9803);
                     recvNodeSink->Bind (localSocket);
                     recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
                   //  std::cout<<"before\n";
-                    InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 81);
+                    InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
                     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                     sourceNodeSocket->Connect (remoteSocket);
-                    Simulator::Schedule (Seconds(10.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
+                    Simulator::Schedule (Seconds(index1/1000000.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
 
                   //  std::cout<<"after\n";
                 }
@@ -489,11 +457,14 @@ void DCNET(Ptr<Socket> socket, int numRounds)
     }
     else
     {
+	std::cout<<"Debug : Inside dcnet else part\n";
         stage2EndTime.erase(stage2EndTime.begin());
         //stage2EndTime.push_back(Simulator::Now());
         DisplayMeasurements();
+	
         socket->Close();
-        Simulator::Stop ();
+       	Simulator::Stop ();
+	
     }
 }
 
@@ -523,7 +494,7 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
 
     cmd.Parse (argc, argv);
     // Convert to time object
-    Time interPacketInterval = Seconds (interval);
+    //Time interPacketInterval = Seconds (interval);
 
     // disable fragmentation for frames below 2200 bytes
     Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
@@ -548,7 +519,7 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
 
     YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
     // set it to zero; otherwise, gain will be added
-    wifiPhy.Set ("RxGain", DoubleValue (-10) );
+    wifiPhy.Set ("RxGain", DoubleValue (0) );
     // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
     wifiPhy.SetPcapDataLinkType (YansWifiPhyHelper::DLT_IEEE802_11_RADIO);
 
@@ -580,7 +551,7 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
                                    "MinY", DoubleValue (0.0),
                                    "DeltaX", DoubleValue (distance),
                                    "DeltaY", DoubleValue (distance),
-                                   "GridWidth", UintegerValue (5),
+                                   "GridWidth", UintegerValue (20),
                                    "LayoutType", StringValue ("RowFirst"));
     mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
@@ -610,9 +581,8 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
     std::cout<<"Message length:"<<MessageLength<<"\n";
     source = Socket::CreateSocket (c.Get (0), tid);
     stage1StartTime.push_back(Simulator::Now());
-
+    totalTimeStart = Simulator::Now();
     Simulator::ScheduleNow (&DCNET, source, 0);
-
 
 
     if (tracing == true)
@@ -627,15 +597,10 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
         // To do-- enable an IP-level trace that shows forwarding events only
     }
 
-
-
-
-
-
-
     //Simulator::Stop (Seconds (3000.0));
     Simulator::Run ();
-    Simulator::Destroy ();
+Simulator::Destroy ();
+    
 
     return 0;
 }

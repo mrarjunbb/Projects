@@ -75,9 +75,9 @@ std::stringstream sharedMessage;
 int sender = 0;
 std::string Message = "101";
 std::string phyMode ("OfdmRate54Mbps");
-double distance = 5;  // m
+double distance = 1;  // m
 uint32_t packetSize = 1024; // bytes
-uint32_t numPackets = 20;
+uint32_t numPackets = 60;
 int numNodes = 3;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
@@ -106,6 +106,8 @@ std::vector<Time> stage1StartTime;
 std::vector<Time> stage2StartTime;
 std::vector<Time> stage1EndTime;
 std::vector<Time> stage2EndTime;
+Time totalTimeStart, totalTimeEnd;
+double totalRunningTime;
 double goodPut;
 
 

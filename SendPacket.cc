@@ -72,6 +72,8 @@ void ReceiveMessage (Ptr<Socket> socket)
     randomBitCounter--;
     if(randomBitCounter == 0)
     {
+	stage1EndTime.push_back(Simulator::Now());
+	stage2StartTime.push_back(Simulator::Now());
         Simulator::ScheduleNow (&DisplayMessage,source);
     }
 }
@@ -86,8 +88,6 @@ int randomBitGeneratorWithProb(double p)
 static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
 {
 publicKeyCounter = (numNodes * numNodes) - numNodes;
-    stage1EndTime.push_back(Simulator::Now());
-    stage2StartTime.push_back(Simulator::Now());
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
     // Generate a random IV
     rnd.GenerateBlock(iv, AES::BLOCKSIZE);
@@ -307,6 +307,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 		AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
 		publicKeyCounter = (numNodes * numNodes) - numNodes;
 		randomBitCounter = (numNodes * (numNodes-1)/2);
+		stage2EndTime.push_back(Simulator::Now());
 		Simulator::ScheduleNow (&DCNET, source,rounds+1);
 	}
 }
@@ -371,7 +372,6 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 			}	
 		}
 	}
-
 }
 
 void DisplayMeasurements()
@@ -382,18 +382,26 @@ void DisplayMeasurements()
     std::cout<<"Sent Recv Count Stage 1: "<<stage1RecvPacketCount<<"\n";
     std::cout<<"Sent Recv Count Stage 2: "<<stage2RecvPacketCount<<"\n";
 
-    stage1Latency = stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds();
+    stage1Latency = (stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds());
     std::cout<<"Stage 1 latency: "<<stage1Latency<<"\n";
 
-    stage2Latency = stage2EndTime.front().GetSeconds() - stage2StartTime.front().GetSeconds();
+    stage2Latency = (stage2EndTime.front().GetSeconds() - stage2StartTime.front().GetSeconds());
     std::cout<<"Stage 2 latency: "<<stage2Latency<<"\n";
 
-    goodPut = (stage1Latency + stage2Latency) * MessageLength;
-    std::cout<<"goodPut: "<<goodPut<<"\n";
+    totalLatency = (stage1Latency + stage2Latency);
+   // std::cout<<"goodPut: "<<goodPut<<"\n";
 
 totalTimeEnd = Simulator::Now();
 totalRunningTime = totalTimeEnd.GetSeconds() - totalTimeStart.GetSeconds();
-std::cout<<"Total Running Time: "<<totalRunningTime<<"\n";
+std::cout<<"Total time taken : "<<totalRunningTime<<" seconds\n";
+
+ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+//output to csv
+
+	if(option == 1)
+		appUtil->writeOutputToFile((char*)"NumNodesvsMeasurements.csv",option,numNodes,MessageLength,totalLatency,totalRunningTime);	
+	else if(option == 2)
+		appUtil->writeOutputToFile((char*)"MsgLengthvsMeasurements.csv",option,numNodes,MessageLength,totalLatency,totalRunningTime);	
  
 }
 
@@ -401,15 +409,11 @@ void DCNET(Ptr<Socket> socket, int numRounds)
 {
     //numRounds++;
 	std::cout<<"Debug : Inside dcnet\n";
-    stage2EndTime.push_back(Simulator::Now());
-    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+        ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 
     if(numRounds < MessageLength)
     {
         rounds = numRounds;
-
-
-///////////////////////////////////////Stage1////////////////////////////////////////////
 
         //Symmetric key generation
         for(int ind =0 ; ind < (int)numNodes; ind++)
@@ -441,25 +445,12 @@ void DCNET(Ptr<Socket> socket, int numRounds)
                 }
             }
         }
-
-        //waitTime +=  (2.0 * numNodes * keyExchangeInterval)  + 5.0;
-
-///////////////////////////////////////Stage2////////////////////////////////////////////
-
-
-        //Simulator::Schedule (Seconds (waitTime), &SimulatorLoop, source,tid,c,i, waitTime);
-//	std::cout<<"Wait time : "<<waitTime;
-        //waitTime = 1.5 * waitTime + 5.0;
-        //Simulator::Schedule (Seconds (waitTime), &DisplayMessage,source);
-//	std::cout<<"Wait time 2: "<<waitTime;
-        //waitTime = 1.5 * waitTime + 5.0;
-        //Simulator::Schedule (Seconds (waitTime+5.0), &DCNET, source,waitTime+5.0, numRounds+1);
     }
     else
     {
 	std::cout<<"Debug : Inside dcnet else part\n";
-        stage2EndTime.erase(stage2EndTime.begin());
-        //stage2EndTime.push_back(Simulator::Now());
+       // stage2EndTime.erase(stage2EndTime.begin());
+       // stage2EndTime.push_back(Simulator::Now());
         DisplayMeasurements();
 	
         socket->Close();
@@ -474,23 +465,15 @@ int main (int argc, char *argv[])
     NS_LOG_UNCOND("Inside Main");
 
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
 
-    publicKeyCounter = (numNodes * numNodes) - numNodes;
-    randomBitCounter = (numNodes * (numNodes-1)/2);
     CommandLine cmd;
+	
+    std::cout<<"argc : "<<argc<<"\n";
 
-
-    cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
-    cmd.AddValue ("distance", "distance (m)", distance);
-    cmd.AddValue ("packetSize", "size of application packet sent", packetSize);
-    cmd.AddValue ("numPackets", "number of packets generated", numPackets);
-    cmd.AddValue ("interval", "interval (seconds) between packets", interval);
-    cmd.AddValue ("verbose", "turn on all WifiNetDevice log components", verbose);
-    cmd.AddValue ("tracing", "turn on ascii and pcap tracing", tracing);
-    cmd.AddValue ("numNodes", "number of nodes", numNodes);
-    cmd.AddValue ("sinkNode", "Receiver node number", sinkNode);
-    cmd.AddValue ("sourceNode", "Sender node number", sourceNode);
+    cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
+    cmd.AddValue ("message", "Actual Message", Message);
+    cmd.AddValue ("option", "Changing numnodes or messagelength", option);	  
+    //cmd.AddValue ("sender", "Sender of the message (actually anonymous)", sender);
 
     cmd.Parse (argc, argv);
     // Convert to time object
@@ -574,6 +557,11 @@ AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
     i = ipv4.Assign (devices);
 
     tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+
+
+    AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+    publicKeyCounter = (numNodes * numNodes) - numNodes;
+    randomBitCounter = (numNodes * (numNodes-1)/2);
 
 
     std::cout<<"Actual Message : "<<Message<<"\n";

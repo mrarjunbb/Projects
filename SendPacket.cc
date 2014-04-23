@@ -1,7 +1,7 @@
 #include "ApplicationUtil.h"
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
-void DisplayMessage(Ptr<Socket> socket);
+void DisplayMessage();
 void DCNET(int numRounds);
 std::string hexStr(byte *data, int len)
 {
@@ -68,13 +68,13 @@ void ReceiveMessage (Ptr<Socket> socket)
 
     appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
-
+    delete buffer;
     randomBitCounter--;
     if(randomBitCounter == 0)
     {
 	stage1EndTime.push_back(Simulator::Now());
 	stage2StartTime.push_back(Simulator::Now());
-        Simulator::ScheduleNow (&DisplayMessage,source);
+        Simulator::Schedule (Seconds(0.01),&DisplayMessage);
     }
 }
 
@@ -85,7 +85,7 @@ int randomBitGeneratorWithProb(double p)
     return rndDouble > p;
 }
 
-static void SimulatorLoop(Ptr<Socket> socket,TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
+static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
 {
 publicKeyCounter = (numNodes * numNodes) - numNodes;
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -132,7 +132,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
                 Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                 sourceNodeSocket->Connect (remoteSocket);
                 //waitTime += 20.0;
-                Simulator::ScheduleNow(&SendMessage, sourceNodeSocket,message,index1,index2);
+                Simulator::Schedule(Seconds(0.01),&SendMessage, sourceNodeSocket,message,index1,index2);
             }
         }
     }
@@ -191,10 +191,11 @@ void ReceivePublicKey (Ptr<Socket> socket)
 
     publicKeyCounter--;
 	std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
+    //socket->Close();
     if(publicKeyCounter == 0)
     {
 	std::cout<<"Debug : calling simulator loop \n";
-        Simulator::ScheduleNow (&SimulatorLoop, socket,tid,c,i);
+        Simulator::Schedule (Seconds(0.00),&SimulatorLoop, tid,c,i);
     }
 
 
@@ -288,6 +289,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 	int srcNodeIndex =int(recTag.GetSimpleValue());
 	//std::cout<<"Putting announcement in map"<<"\n";
 	appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
+        delete buffer;
 	if(AnnouncementPacketCount==0)
 	{
 	//	std::cout<<"Hello\n";
@@ -312,7 +314,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 	}
 }
 
-void DisplayMessage(Ptr<Socket> socket)
+void DisplayMessage()
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
     
@@ -367,7 +369,7 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 				      sourceNodeSocket->Connect (remoteSocket);
 
 
-	Simulator::ScheduleNow (&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
+	Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
 				
 			}	
 		}
@@ -453,8 +455,7 @@ void DCNET( int numRounds)
        // stage2EndTime.push_back(Simulator::Now());
         DisplayMeasurements();
 	
-        socket->Close();
-       	Simulator::Stop ();
+       	//Simulator::Stop ();
 	
     }
 }
@@ -513,7 +514,7 @@ int main (int argc, char *argv[])
 
     // Add a non-QoS upper mac, and disable rate control
     NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
-    wifi.SetStandard (WIFI_PHY_STANDARD_80211a);
+    wifi.SetStandard (WIFI_PHY_STANDARD_80211g);
     wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                   "DataMode",StringValue (phyMode),
                                   "ControlMode",StringValue (phyMode));
@@ -534,7 +535,7 @@ int main (int argc, char *argv[])
                                    "MinY", DoubleValue (0.0),
                                    "DeltaX", DoubleValue (distance),
                                    "DeltaY", DoubleValue (distance),
-                                   "GridWidth", UintegerValue (20),
+                                   "GridWidth", UintegerValue (40),
                                    "LayoutType", StringValue ("RowFirst"));
     mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
@@ -567,10 +568,9 @@ int main (int argc, char *argv[])
     std::cout<<"Actual Message : "<<Message<<"\n";
     MessageLength = (int)strlen(Message.c_str()) ;
     std::cout<<"Message length:"<<MessageLength<<"\n";
-    source = Socket::CreateSocket (c.Get (0), tid);
     stage1StartTime.push_back(Simulator::Now());
     totalTimeStart = Simulator::Now();
-    Simulator::ScheduleNow (&DCNET, source, 0);
+    Simulator::ScheduleNow (&DCNET, 0);
 
 
     if (tracing == true)
@@ -585,7 +585,6 @@ int main (int argc, char *argv[])
         // To do-- enable an IP-level trace that shows forwarding events only
     }
 
-    //Simulator::Stop (Seconds (3000.0));
     Simulator::Run ();
 Simulator::Destroy ();
     

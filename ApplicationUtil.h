@@ -61,7 +61,7 @@ Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 TypeId tid;
 Ipv4InterfaceContainer i;
 NodeContainer c;
-Ptr<Socket> source;
+//Ptr<Socket> source;
 int option;
 
 //int nodeSpeed = 20; //in m/s

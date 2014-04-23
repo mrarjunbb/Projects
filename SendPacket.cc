@@ -2,7 +2,7 @@
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
 void DisplayMessage(Ptr<Socket> socket);
-void DCNET(Ptr<Socket> socket, int numRounds);
+void DCNET(int numRounds);
 std::string hexStr(byte *data, int len)
 {
     std::stringstream ss;
@@ -308,7 +308,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 		publicKeyCounter = (numNodes * numNodes) - numNodes;
 		randomBitCounter = (numNodes * (numNodes-1)/2);
 		stage2EndTime.push_back(Simulator::Now());
-		Simulator::ScheduleNow (&DCNET, source,rounds+1);
+		Simulator::ScheduleNow (&DCNET,rounds+1);
 	}
 }
 
@@ -405,7 +405,7 @@ ApplicationUtil *appUtil = ApplicationUtil::getInstance();
  
 }
 
-void DCNET(Ptr<Socket> socket, int numRounds)
+void DCNET( int numRounds)
 {
     //numRounds++;
 	std::cout<<"Debug : Inside dcnet\n";
@@ -439,7 +439,7 @@ void DCNET(Ptr<Socket> socket, int numRounds)
                     InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
                     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                     sourceNodeSocket->Connect (remoteSocket);
-                    Simulator::Schedule (Seconds(index1/1000000.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
+                    Simulator::Schedule (Seconds(index1/1000.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
 
                   //  std::cout<<"after\n";
                 }

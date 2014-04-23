@@ -26,40 +26,6 @@ std::string hexStr(byte *data, int len)
     return ss.str();
 }
 
-
-
-static void SendMessage (std::string message, int index, int dest)
-{
-    Ptr<Packet> sendPacket =
-        Create<Packet> ((uint8_t*)message.c_str(),message.size());
-
-    MyTag sendTag;
-    sendTag.SetSimpleValue(index);
-    sendPacket->AddPacketTag(sendTag);
-
-
-
-        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
-        recvNodeSink->Bind (localSocket);
-        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
-
-        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9801);
-        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-        sourceNodeSocket->Connect (remoteSocket);
-
-
-
-
-    PacketHolder ph(sendPacket);
-    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
-
-
-    sourceNodeSocket->Send (sendPacket);
-    stage2SentPacketCount += 1;//increment sent packet counter for stage2
-    //socket->Close ();
-}
-
 void ReceiveMessage (Ptr<Socket> socket)
 {
     Ptr<Packet> recPacket = socket->Recv();
@@ -109,6 +75,38 @@ void ReceiveMessage (Ptr<Socket> socket)
 	stage2StartTime.push_back(Simulator::Now());
         Simulator::Schedule (Seconds(0.01),&DisplayMessage);
     }
+}
+
+static void SendMessage (std::string message, int index1, int index2)
+{
+    Ptr<Packet> sendPacket =
+        Create<Packet> ((uint8_t*)message.c_str(),message.size());
+
+    MyTag sendTag;
+    sendTag.SetSimpleValue(index1);
+    sendPacket->AddPacketTag(sendTag);
+
+
+
+        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
+        recvNodeSink->Bind (localSocket);
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+
+        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9801);
+        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+        sourceNodeSocket->Connect (remoteSocket);
+
+
+
+
+    PacketHolder ph(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+
+
+    sourceNodeSocket->Send (sendPacket);
+    stage2SentPacketCount += 1;//increment sent packet counter for stage2
+    //socket->Close ();
 }
 
 
@@ -163,37 +161,6 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 
 }
 
-static void SendPublicKey (SecByteBlock pub, int index1, int index2)
-{
-    Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
-	std::cout<<"Debug : Inside dcnet send public key \n";
-    MyTag sendTag;
-    sendTag.SetSimpleValue(index);
-    sendPacket->AddPacketTag(sendTag);
-
-
-
-        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9803);
-        recvNodeSink->Bind (localSocket);
-        recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-      //  std::cout<<"before\n";
-        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
-        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-        sourceNodeSocket->Connect (remoteSocket);
-
-
-
-    PacketHolder ph(sendPacket);
-    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));	
-
-    sourceNodeSocket->Send(sendPacket);
-    stage1SentPacketCount += 1;//increment sent packet counter for stage1
-    //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
-
-    sourceNodeSocket->Close();
-}
-
 void ReceivePublicKey (Ptr<Socket> socket)
 {
  std::cout<<"Debug : Inside dcnet receive public key \n";
@@ -239,6 +206,42 @@ void ReceivePublicKey (Ptr<Socket> socket)
 
 
 }
+
+static void SendPublicKey (SecByteBlock pub, int index1, int index2)
+{
+    Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
+        std::cout<<"Debug : Inside dcnet send public key \n";
+    MyTag sendTag;
+    sendTag.SetSimpleValue(index1);
+    sendPacket->AddPacketTag(sendTag);
+
+
+	int retval = 0;
+
+        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9803);
+        retval = recvNodeSink->Bind (localSocket);
+	std::cout<<"recvnode bind="<<retval<<std::endl;
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+      //  std::cout<<"before\n";
+        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
+        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+        retval = sourceNodeSocket->Connect (remoteSocket);
+	std::cout<<"sourcenode connect="<<retval<<std::endl;
+
+
+
+    PacketHolder ph(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+
+    retval = sourceNodeSocket->Send(sendPacket);
+    std::cout<<"sourcenode send="<<retval<<std::endl;
+    stage1SentPacketCount += 1;//increment sent packet counter for stage1
+    //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
+
+    sourceNodeSocket->Close();
+}
+
 
 void generateKeys(int index, ApplicationUtil *appUtil)
 {

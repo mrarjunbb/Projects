@@ -1,6 +1,20 @@
 #include "ApplicationUtil.h"
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
+class PacketHolder {
+	public:
+	PacketHolder(Ptr<Packet> _packet) {
+		this->packet = _packet;
+	}
+	void SendCallback(Ptr<Socket> socket, uint32_t val) {
+		std::cout<<"callback"<<std::endl;
+		socket->Send(this->packet);
+		socket->Close();
+	}
+	Ptr<Packet> packet;
+
+};
+
 void DisplayMessage();
 void DCNET(int numRounds);
 std::string hexStr(byte *data, int len)
@@ -22,9 +36,15 @@ static void SendMessage (Ptr<Socket> socket, std::string message, int index, int
     MyTag sendTag;
     sendTag.SetSimpleValue(index);
     sendPacket->AddPacketTag(sendTag);
+
+
+    PacketHolder ph(sendPacket);
+    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+
+
     socket->Send (sendPacket);
     stage2SentPacketCount += 1;//increment sent packet counter for stage2
-    socket->Close ();
+    //socket->Close ();
 }
 
 void ReceiveMessage (Ptr<Socket> socket)
@@ -132,7 +152,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
                 Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                 sourceNodeSocket->Connect (remoteSocket);
                 //waitTime += 20.0;
-                Simulator::Schedule(Seconds(0.01),&SendMessage, sourceNodeSocket,message,index1,index2);
+                Simulator::Schedule(Seconds(0.05),&SendMessage, sourceNodeSocket,message,index1,index2);
             }
         }
     }
@@ -148,9 +168,12 @@ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
     sendTag.SetSimpleValue(index);
     sendPacket->AddPacketTag(sendTag);
 
+    PacketHolder ph(sendPacket);
+    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));	
+
     socket->Send(sendPacket);
     stage1SentPacketCount += 1;//increment sent packet counter for stage1
-    std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
+    //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
     socket->Close();
 }
@@ -191,11 +214,11 @@ void ReceivePublicKey (Ptr<Socket> socket)
 
     publicKeyCounter--;
 	std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
-    //socket->Close();
+    socket->Close();
     if(publicKeyCounter == 0)
     {
 	std::cout<<"Debug : calling simulator loop \n";
-        Simulator::Schedule (Seconds(0.00),&SimulatorLoop, tid,c,i);
+        Simulator::Schedule (Seconds(0.03),&SimulatorLoop, tid,c,i);
     }
 
 
@@ -259,6 +282,9 @@ static void SendAnnouncement (Ptr<Socket> socket, int result, int index)
 	MyTag sendTag;
 	sendTag.SetSimpleValue(index);
 	sendPacket->AddPacketTag(sendTag);
+
+    PacketHolder ph(sendPacket);
+    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
 
 	socket->Send(sendPacket);
 	

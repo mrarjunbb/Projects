@@ -28,7 +28,7 @@ std::string hexStr(byte *data, int len)
 
 
 
-static void SendMessage (Ptr<Socket> socket, std::string message, int index, int dest)
+static void SendMessage (std::string message, int index, int dest)
 {
     Ptr<Packet> sendPacket =
         Create<Packet> ((uint8_t*)message.c_str(),message.size());
@@ -38,11 +38,24 @@ static void SendMessage (Ptr<Socket> socket, std::string message, int index, int
     sendPacket->AddPacketTag(sendTag);
 
 
+
+        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
+        recvNodeSink->Bind (localSocket);
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+
+        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9801);
+        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+        sourceNodeSocket->Connect (remoteSocket);
+
+
+
+
     PacketHolder ph(sendPacket);
-    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
 
 
-    socket->Send (sendPacket);
+    sourceNodeSocket->Send (sendPacket);
     stage2SentPacketCount += 1;//increment sent packet counter for stage2
     //socket->Close ();
 }
@@ -142,17 +155,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
                 CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
                 cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
 
-                //Send the encrypted message
-                Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-                InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
-                recvNodeSink->Bind (localSocket);
-                recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
-
-                InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9801);
-                Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-                sourceNodeSocket->Connect (remoteSocket);
-                //waitTime += 20.0;
-                Simulator::Schedule(Seconds(0.05),&SendMessage, sourceNodeSocket,message,index1,index2);
+                Simulator::Schedule(Seconds(0.05),&SendMessage, message,index1,index2);
             }
         }
     }
@@ -160,7 +163,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 
 }
 
-static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
+static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 {
     Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
 	std::cout<<"Debug : Inside dcnet send public key \n";
@@ -168,14 +171,27 @@ static void SendPublicKey (Ptr<Socket> socket, SecByteBlock pub, int index)
     sendTag.SetSimpleValue(index);
     sendPacket->AddPacketTag(sendTag);
 
-    PacketHolder ph(sendPacket);
-    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));	
 
-    socket->Send(sendPacket);
+
+        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9803);
+        recvNodeSink->Bind (localSocket);
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+      //  std::cout<<"before\n";
+        InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
+        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+        sourceNodeSocket->Connect (remoteSocket);
+
+
+
+    PacketHolder ph(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));	
+
+    sourceNodeSocket->Send(sendPacket);
     stage1SentPacketCount += 1;//increment sent packet counter for stage1
     //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
-    socket->Close();
+    sourceNodeSocket->Close();
 }
 
 void ReceivePublicKey (Ptr<Socket> socket)
@@ -459,15 +475,7 @@ void DCNET( int numRounds)
                 if(index1 != index2)
                 {
 			std::cout<<"Debug : Inside dcnet  1\n";
-                    Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-                    InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9803);
-                    recvNodeSink->Bind (localSocket);
-                    recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
-                  //  std::cout<<"before\n";
-                    InetSocketAddress remoteSocket = InetSocketAddress (i.GetAddress (index2, 0), 9803);
-                    Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-                    sourceNodeSocket->Connect (remoteSocket);
-                    Simulator::Schedule (Seconds(index1/1000.0),&SendPublicKey, sourceNodeSocket,appUtil->getPublicKeyFromMap(index1),index1);
+                    Simulator::Schedule (Seconds(index1/1000.0),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
 
                   //  std::cout<<"after\n";
                 }

@@ -73,7 +73,10 @@ void ReceiveMessage (Ptr<Socket> socket)
     {
 	stage1EndTime.push_back(Simulator::Now());
 	stage2StartTime.push_back(Simulator::Now());
-        Simulator::Schedule (Seconds(0.01),&DisplayMessage);
+			Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    double jitter = uv->GetValue(0.0001,0.1);
+                    std::cout << "displaymessage random="<<jitter<< std::endl;
+        Simulator::Schedule (Seconds(jitter),&DisplayMessage);
     }
 }
 
@@ -152,8 +155,11 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 
                 CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
                 cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
+Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    double jitter = uv->GetValue(0.0001,0.1);
+                    std::cout << "sendmessage random="<<jitter<< std::endl;
 
-                Simulator::Schedule(Seconds(0.05),&SendMessage, message,index1,index2);
+                Simulator::Schedule(Seconds(jitter),&SendMessage, message,index1,index2);
             }
         }
     }
@@ -201,7 +207,11 @@ void ReceivePublicKey (Ptr<Socket> socket)
     if(publicKeyCounter == 0)
     {
 	std::cout<<"Debug : calling simulator loop \n";
-        Simulator::Schedule (Seconds(0.03),&SimulatorLoop, tid,c,ipInterfaceContainer);
+Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    double jitter = uv->GetValue(0.0001,0.1);
+                    std::cout << "simulatorloop random="<<jitter<< std::endl;
+
+        Simulator::Schedule (Seconds(jitter),&SimulatorLoop, tid,c,ipInterfaceContainer);
     }
 
 
@@ -214,18 +224,21 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     sendTag.SetSimpleValue(index1);
     sendPacket->AddPacketTag(sendTag);
 
+                    Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    int randomport = uv->GetInteger(1025,9999);
+		    //randomport = 9803;
 
 	int retval = 0;
 	std::cout<<"*******************"<<std::endl;
 	std::cout<<"Debug : Inside dcnet send public key index2="<<index2<<std::endl;
         Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-        InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),9803);
+        InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),randomport);
 	std::cout<<"localaddress="<<localAddress<<std::endl;
         retval = recvNodeSink->Bind (localAddress);
 	std::cout<<"recvnode bind="<<retval<<std::endl;
 	recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
         
-	InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9803);
+	InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
         Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
         retval = sourceNodeSocket->Connect (remoteSocket);
 	std::cout<<"sourcenode connect="<<retval<<std::endl;
@@ -404,18 +417,24 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 		{
 			if(index1 != index2)
 			{
+
+
+                    Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    int randomport = uv->GetInteger(1025,9999);
+                    //randomport = 9802;
+
 	
 				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9802);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),randomport);
 				      recvNodeSink->Bind (localSocket);
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
 									    				      
-				      InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9802);
+				      InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
-
-
-	Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
+                    double jitter = uv->GetValue(0.0001,0.1);
+                    std::cout << "sendannouncement random="<<jitter<< std::endl;
+	Simulator::Schedule (Seconds(jitter),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
 				
 			}	
 		}
@@ -480,8 +499,8 @@ void DCNET( int numRounds)
                 {
 			std::cout<<"Debug : Inside dcnet  1\n";
 	            Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-		    double jitter = uv->GetValue(0.0001,5);
-	            std::cout << "random="<<jitter<< std::endl;
+		    double jitter = uv->GetValue(0.0001,0.1);
+	            std::cout << "sendpublickey random="<<jitter<< std::endl;
                     Simulator::Schedule (Seconds(jitter),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
 
                   //  std::cout<<"after\n";

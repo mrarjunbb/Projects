@@ -59,7 +59,7 @@ Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
 Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
 TypeId tid;
-Ipv4InterfaceContainer i;
+Ipv4InterfaceContainer ipInterfaceContainer;
 NodeContainer c;
 //Ptr<Socket> source;
 int option;
@@ -80,7 +80,7 @@ std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 15;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 3;  // by default, 5x5
+int numNodes = 10;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds

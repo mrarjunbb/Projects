@@ -7,7 +7,7 @@ class PacketHolder {
 		this->packet = _packet;
 	}
 	void SendCallback(Ptr<Socket> socket, uint32_t val) {
-		std::cout<<"callback"<<std::endl;
+		std::cout<<"send callback"<<std::endl;
 		socket->Send(this->packet);
 		socket->Close();
 	}
@@ -69,6 +69,7 @@ void ReceiveMessage (Ptr<Socket> socket)
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
     delete buffer;
     randomBitCounter--;
+    //socket->Close();
     if(randomBitCounter == 0)
     {
 	stage1EndTime.push_back(Simulator::Now());
@@ -89,22 +90,27 @@ static void SendMessage (std::string message, int index1, int index2)
     sendTag.SetSimpleValue(index1);
     sendPacket->AddPacketTag(sendTag);
 
+                    Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+                    int randomport = uv->GetInteger(1025,65530);
+		    //randomport = 9801;
 
-
+	int retval = 0;
         Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
-        recvNodeSink->Bind (localSocket);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), randomport);
+        retval=recvNodeSink->Bind (localSocket);
+        std::cout<<"recvnode bind="<<retval<<std::endl;
         recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
 
-        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9801);
+        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
         Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
         sourceNodeSocket->Connect (remoteSocket);
+	//int timeout = sourceNodeSocket->GetTimeout();
+	//std::cout<<"timeout="<<timeout<<std::endl;
 
 
 
-
-    PacketHolder ph(sendPacket);
-    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+    PacketHolder* ph = new PacketHolder(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
 
 
     sourceNodeSocket->Send (sendPacket);
@@ -167,6 +173,11 @@ Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
 
 }
 
+bool AcceptConnectionRequest(Ptr<Socket> socket,const Address& address) {
+	return true;
+}
+
+
 void ReceivePublicKey (Ptr<Socket> socket)
 {
  std::cout<<"Debug : Inside dcnet receive public key \n";
@@ -203,7 +214,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
 
     publicKeyCounter--;
 	std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
-    socket->Close();
+    //socket->Close();
     if(publicKeyCounter == 0)
     {
 	std::cout<<"Debug : calling simulator loop \n";
@@ -217,26 +228,51 @@ Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
 
 }
 
+void ReceivePublicKeyCallback(Ptr<Socket> socket,const Address& address) {
+	std::cout<<"receivepublickeycallback"<<std::endl;
+        socket->SetRecvCallback(MakeCallback(&ReceivePublicKey));
+}
+
+
+map<int,Ptr<Socket> > sendPublicKey_ReceiverSocketMap;
+map<int,Ptr<Socket> > sendPublicKey_SenderSocketMap;
+
 static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 {
+
+
+        std::cout<<"*******************"<<std::endl;
+        std::cout<<"Debug : Inside dcnet send public key index1="<<index1<<" index2="<<index2<<std::endl;
+
+
     Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
     MyTag sendTag;
     sendTag.SetSimpleValue(index1);
     sendPacket->AddPacketTag(sendTag);
 
                     Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-                    int randomport = uv->GetInteger(1025,9999);
-		    //randomport = 9803;
+                    int randomport = uv->GetInteger(1025,65530);
+		    randomport = 9803;
 
+	Ptr<Socket> recvNodeSink = NULL;
 	int retval = 0;
-	std::cout<<"*******************"<<std::endl;
-	std::cout<<"Debug : Inside dcnet send public key index2="<<index2<<std::endl;
-        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+	bool receiver_exists = sendPublicKey_ReceiverSocketMap.find(index2) != sendPublicKey_ReceiverSocketMap.end();
+        if(receiver_exists) {
+	recvNodeSink = sendPublicKey_ReceiverSocketMap[index2];
+	}
+	else {
+
+        recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
         InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),randomport);
 	std::cout<<"localaddress="<<localAddress<<std::endl;
         retval = recvNodeSink->Bind (localAddress);
 	std::cout<<"recvnode bind="<<retval<<std::endl;
-	recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+	recvNodeSink->Listen();
+	//recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+	recvNodeSink->SetAcceptCallback(MakeCallback(&AcceptConnectionRequest),MakeCallback(&ReceivePublicKeyCallback));
+
+	sendPublicKey_ReceiverSocketMap[index2] = recvNodeSink;
+	}
         
 	InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
         Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
@@ -245,21 +281,22 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 
 
 
-    PacketHolder ph(sendPacket);
-    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+    PacketHolder* ph = new PacketHolder(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
 
     retval = sourceNodeSocket->Send(sendPacket);
     std::cout<<"sourcenode send="<<retval<<std::endl;
     stage1SentPacketCount += 1;//increment sent packet counter for stage1
     //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
-    sourceNodeSocket->Close();
+    //sourceNodeSocket->Close();
 }
 
 
-void generateKeys(int index, ApplicationUtil *appUtil)
+void generateKeys(int index)
 {
     try {
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
         DH dh;
         AutoSeededRandomPool rnd;
 
@@ -323,7 +360,7 @@ static void SendAnnouncement (Ptr<Socket> socket, int result, int index)
 	
 	
 	//std::cout<<"Sending announcement for "<<index<<":"<<message<<"Packet count:"<<AnnouncementPacketCount<<"\n";
-	socket->Close();
+	//socket->Close();
 }
 
 void ReceiveAnnouncement (Ptr<Socket> socket)
@@ -349,6 +386,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 	//std::cout<<"Putting announcement in map"<<"\n";
 	appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
         delete buffer;
+        //socket->Close();
 	if(AnnouncementPacketCount==0)
 	{
 	//	std::cout<<"Hello\n";
@@ -420,19 +458,20 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 
 
                     Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-                    int randomport = uv->GetInteger(1025,9999);
+                    int randomport = uv->GetInteger(1025,65530);
                     //randomport = 9802;
 
-	
+				int retval =0;	
 				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
 				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),randomport);
-				      recvNodeSink->Bind (localSocket);
+				      retval=recvNodeSink->Bind (localSocket);
+				      std::cout<<"recvnode bind="<<retval<<std::endl;
 				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
 									    				      
 				      InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
 				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
 				      sourceNodeSocket->Connect (remoteSocket);
-                    double jitter = uv->GetValue(0.0001,0.1);
+                    double jitter = uv->GetValue(0.0001,0.9);
                     std::cout << "sendannouncement random="<<jitter<< std::endl;
 	Simulator::Schedule (Seconds(jitter),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
 				
@@ -485,8 +524,7 @@ void DCNET( int numRounds)
         //Symmetric key generation
         for(int ind =0 ; ind < (int)numNodes; ind++)
         {
-            SecByteBlock priv, pub;
-            generateKeys(ind,appUtil);
+            generateKeys(ind);
         }
 
         //send the public key to everyone
@@ -595,7 +633,7 @@ int main (int argc, char *argv[])
                                    "MinY", DoubleValue (0.0),
                                    "DeltaX", DoubleValue (distance),
                                    "DeltaY", DoubleValue (distance),
-                                   "GridWidth", UintegerValue (40),
+                                   "GridWidth", UintegerValue (100),
                                    "LayoutType", StringValue ("RowFirst"));
     mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
@@ -617,7 +655,7 @@ int main (int argc, char *argv[])
     ipv4.SetBase ("10.1.1.0", "255.255.255.0");
     ipInterfaceContainer = ipv4.Assign (devices);
 
-    tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+    tid = TypeId::LookupByName ("ns3::TcpSocketFactory");
 
 
     AnnouncementPacketCount = (numNodes * numNodes) - numNodes;

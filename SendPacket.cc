@@ -168,6 +168,12 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 	}
 }
 
+void ReceiveMessageCallback(Ptr<Socket> socket,const Address& address) {
+    std::cout<<"receivemessagecallback"<<std::endl;
+    socket->SetRecvCallback(MakeCallback(&ReceiveMessage));
+}
+
+
 void ReceiveMessage (Ptr<Socket> socket)
 {
     Ptr<Packet> recPacket = socket->Recv();
@@ -219,6 +225,8 @@ void ReceiveMessage (Ptr<Socket> socket)
     }
 }
 
+map<int,Ptr<Socket> > sendMessage_ReceiverSocketMap;
+
 static void SendMessage (std::string message, int index1, int index2)
 {
     Ptr<Packet> sendPacket =
@@ -228,27 +236,41 @@ static void SendMessage (std::string message, int index1, int index2)
     sendTag.SetSimpleValue(index1);
     sendPacket->AddPacketTag(sendTag);
 
+        Ptr<Socket> recvNodeSink =  NULL;
+        int retval = 0;
+        int port = 9801;
+        bool receiver_exists = sendMessage_ReceiverSocketMap.find(index2) != sendMessage_ReceiverSocketMap.end();
+        if(receiver_exists) {
+            recvNodeSink = sendMessage_ReceiverSocketMap[index2];
+        }
+        else {
 
+            recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+            InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
+            std::cout<<"localaddress="<<localAddress<<std::endl;
+            retval = recvNodeSink->Bind (localAddress);
+            std::cout<<"recvnode bind="<<retval<<std::endl;
+            recvNodeSink->Listen();
+            recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+            recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
+	        MakeCallback(&ReceiveMessageCallback));
 
-        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
-        recvNodeSink->Bind (localSocket);
-        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+            sendMessage_ReceiverSocketMap[index2] = recvNodeSink;
+        }
 
-        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9801);
+        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), port);
         Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-        sourceNodeSocket->Connect (remoteSocket);
+        retval = sourceNodeSocket->Connect (remoteSocket);
+        std::cout<<"sourcenode connect="<<retval<<std::endl;
+
+    //PacketHolder ph(sendPacket);
+    //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
 
 
-
-
-    PacketHolder ph(sendPacket);
-    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
-
-
-    sourceNodeSocket->Send (sendPacket);
+    retval = sourceNodeSocket->Send(sendPacket);
+    std::cout<<"sourcenode send="<<retval<<std::endl;
     stage2SentPacketCount += 1;//increment sent packet counter for stage2
-    //socket->Close ();
+    //sourceNodeSocket->Close ();
 }
 
 static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
@@ -360,7 +382,6 @@ void ReceivePublicKeyCallback(Ptr<Socket> socket,const Address& address) {
 
 
 map<int,Ptr<Socket> > sendPublicKey_ReceiverSocketMap;
-map<int,Ptr<Socket> > sendPublicKey_SenderSocketMap;
 
 static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 {

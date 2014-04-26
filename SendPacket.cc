@@ -15,6 +15,49 @@ public:
 
 };
 
+class PublicKeyApp : public Application
+{
+public:
+
+  PublicKeyApp (Ptr<Socket> socket, Address address, uint32_t packetSize);
+  virtual ~PublicKeyApp();
+
+private:
+  virtual void StartApplication (void);
+  virtual void StopApplication (void);
+
+  void SendPacket (void);
+
+  Ptr<Socket>     m_socket;
+  Address         m_peeraddress;
+  uint32_t        m_packetSize;
+};
+
+PublicKeyApp::PublicKeyApp (Ptr<Socket> socket, Address address, uint32_t packetSize) {
+    this->m_socket = socket;
+    this->m_peeraddress = address;
+    this->m_packetSize = packetSize;
+}
+
+PublicKeyApp::SendPacket() {
+  m_socket->Send (packet);
+}
+
+void PublicKeyApp::StartApplication (void)
+{
+  m_socket->Bind ();
+  m_socket->Connect (this->m_peeraddress);
+  SendPacket ();
+}
+
+void PublicKeyApp::StopApplication (void)
+{
+  if (m_socket)
+    {
+      m_socket->Close ();
+    }
+}
+
 
 void DCNET(int numRounds);
 std::string hexStr(byte *data, int len)

@@ -42,21 +42,24 @@ static void SendAnnouncement (Ptr<Socket> socket, int result, int index)
 	std::string message = ss.str();
 	Ptr<Packet> sendPacket =
 	Create<Packet> ((uint8_t*)message.c_str(),message.size());
-	//Ptr<Packet> sendPacket = Create<Packet> (result);
 	
 	MyTag sendTag;
 	sendTag.SetSimpleValue(index);
 	sendPacket->AddPacketTag(sendTag);
 
-    PacketHolder ph(sendPacket);
-    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+    //PacketHolder* ph = new PacketHolder(sendPacket);
+    //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
 
-	socket->Send(sendPacket);
-	
-	
-	//std::cout<<"Sending announcement for "<<index<<":"<<message<<"Packet count:"<<AnnouncementPacketCount<<"\n";
-	socket->Close();
+    retval = sourceNodeSocket->Send(sendPacket);
+    std::cout<<"sourcenode send="<<retval<<std::endl;
+    //sourceNodeSocket->Close();
 }
+
+void ReceiveAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
+    std::cout<<"receiveannouncementcallback"<<std::endl;
+    socket->SetRecvCallback(MakeCallback(&ReceiveAnnouncement));
+}
+
 
 void ReceiveAnnouncement (Ptr<Socket> socket)
 {
@@ -105,6 +108,8 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 	}
 }
 
+map<int,Ptr<Socket> > sendAnnouncement_ReceiverSocketMap;
+
 
 void DisplayMessage()
 {
@@ -150,19 +155,37 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 		{
 			if(index1 != index2)
 			{
-	
-				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9802);
-				      recvNodeSink->Bind (localSocket);
-				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
-									    				      
-				      InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9802);
-				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-				      sourceNodeSocket->Connect (remoteSocket);
+
+                int port = 9802;                
+
+                Ptr<Socket> recvNodeSink = NULL;
+                int retval = 0;
+                bool receiver_exists = sendAnnouncement_ReceiverSocketMap.find(index2) != sendAnnouncement_ReceiverSocketMap.end();
+                if(receiver_exists) {
+                    recvNodeSink = sendAnnouncement_ReceiverSocketMap[index2];
+                }
+                else {
+
+                    recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+                    InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),randomport);
+                    std::cout<<"localaddress="<<localAddress<<std::endl;
+                    retval = recvNodeSink->Bind (localAddress);
+                    std::cout<<"recvnode bind="<<retval<<std::endl;
+                    recvNodeSink->Listen();
+                    recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
+                    recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
+		            MakeCallback(&ReceiveAnnouncementCallback));
+
+                    sendAnnouncement_ReceiverSocketMap[index2] = recvNodeSink;
+                }
+
+                InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
+                Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+                retval = sourceNodeSocket->Connect (remoteSocket);
+                std::cout<<"sourcenode connect="<<retval<<std::endl;
 
 
-	Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
-				
+	            Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);				
 			}	
 		}
 	}

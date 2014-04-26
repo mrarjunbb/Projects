@@ -9,7 +9,7 @@ public:
     void SendCallback(Ptr<Socket> socket, uint32_t val) {
         std::cout<<"send callback"<<std::endl;
         socket->Send(this->packet);
-        //socket->Close();
+        socket->Close();
     }
     Ptr<Packet> packet;
 
@@ -32,11 +32,6 @@ int randomBitGeneratorWithProb(double p)
     return rndDouble > p;
 }
 
-bool AcceptConnectionRequest(Ptr<Socket> socket,const Address& address) {
-    return true;
-}
-
-
 void ReceivePublicKey (Ptr<Socket> socket)
 {
     int available = socket->GetRxAvailable ();
@@ -44,27 +39,29 @@ void ReceivePublicKey (Ptr<Socket> socket)
     std::cout<<"Debug : Inside dcnet receive public key \n";
     Ptr<Node> recvnode = socket->GetNode();
     int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
-
+    
     Ptr<Packet> recPacket = socket->Recv();
+    std::cout<<"packet tags"<<std::endl;
+    recPacket->PrintPacketTags(std::cout);
+    std::cout<<"done packet tags"<<std::endl;
     stage1RecvPacketCount +=1; //increment received packet count for stage 1
 
-available = socket->GetRxAvailable ();
-std::cout<<"available="<<available<<std::endl;
-
-
-    uint8_t *buffer = new uint8_t[recPacket->GetSize()+1];
-    recPacket->CopyData(buffer,recPacket->GetSize());
-
+    int len = recPacket->GetSize()+1;
+    std::cout<<"packet len="<<len<<std::endl;
+    uint8_t *buffer = new uint8_t[len];
+    memset(buffer,0,len);
+    int copiedlen = recPacket->CopyData(buffer,recPacket->GetSize());
+    std::cout<<"copied len="<<copiedlen<<std::endl;
     SecByteBlock pubKey((byte *)buffer,recPacket->GetSize());
 
     MyTag recTag;
-    recPacket->PeekPacketTag(recTag);
-    int tagVal =int(recTag.GetSimpleValue());
-    std::ostringstream s;
-    s<<tagVal;
-    std::string ss(s.str());
-    int srcNodeIndex = atoi(ss.c_str());
-    std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
+    recTag.SetSimpleValue(0);
+    bool isTag = recPacket->PeekPacketTag(recTag);
+    int srcNodeIndex =int(recTag.GetSimpleValue());
+    std::cout<<"isTag="<<isTag<<"tagVal="<<srcNodeIndex<<std::endl;
+    
+    //std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
+
 
     DH dh;
     dh.AccessGroupParameters().Initialize(p, q, g);
@@ -108,7 +105,9 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
     MyTag sendTag;
     sendTag.SetSimpleValue(index1);
+    std::cout<<"sendTagVal="<<int(sendTag.GetSimpleValue())<<std::endl;
     sendPacket->AddPacketTag(sendTag);
+    sendPacket->PrintPacketTags(std::cout);
 
     Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
     int randomport = uv->GetInteger(1025,65530);
@@ -128,7 +127,7 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
         retval = recvNodeSink->Bind (localAddress);
         std::cout<<"recvnode bind="<<retval<<std::endl;
         recvNodeSink->Listen();
-        //recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
         recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
 		MakeCallback(&ReceivePublicKeyCallback));
 
@@ -150,7 +149,7 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     stage1SentPacketCount += 1;//increment sent packet counter for stage1
     //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
-    sourceNodeSocket->Close();
+    //sourceNodeSocket->Close();
 }
 
 
@@ -292,7 +291,7 @@ int main (int argc, char *argv[])
     // disable fragmentation for frames below 2200 bytes
     Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
     // turn off RTS/CTS for frames below 2200 bytes
-    //Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("2200"));
+    Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("2200"));
     // Fix non-unicast data rate to be the same as that of unicast
     Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",
                         StringValue (phyMode));
@@ -366,7 +365,7 @@ int main (int argc, char *argv[])
     ipv4.SetBase ("10.1.1.0", "255.255.255.0");
     ipInterfaceContainer = ipv4.Assign (devices);
 
-    tid = TypeId::LookupByName ("ns3::TcpSocketFactory");
+    tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
 
     AnnouncementPacketCount = (numNodes * numNodes) - numNodes;

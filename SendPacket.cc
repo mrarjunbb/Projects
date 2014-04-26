@@ -43,7 +43,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
     std::cout<<"available="<<available<<std::endl;
     std::cout<<"Debug : Inside dcnet receive public key \n";
     Ptr<Node> recvnode = socket->GetNode();
-    //int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+    int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
 
     Ptr<Packet> recPacket = socket->Recv();
     stage1RecvPacketCount +=1; //increment received packet count for stage 1
@@ -51,7 +51,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
 available = socket->GetRxAvailable ();
 std::cout<<"available="<<available<<std::endl;
 
-/*
+
     uint8_t *buffer = new uint8_t[recPacket->GetSize()+1];
     recPacket->CopyData(buffer,recPacket->GetSize());
 
@@ -73,7 +73,7 @@ std::cout<<"available="<<available<<std::endl;
     dh.Agree(sharedKey, ApplicationUtil::getInstance()->getPrivateKeyFromMap(recNodeIndex),pubKey);
 
     ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
-*/
+
     publicKeyCounter--;
     std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
     //socket->Close();

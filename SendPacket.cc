@@ -32,6 +32,272 @@ int randomBitGeneratorWithProb(double p)
     return rndDouble > p;
 }
 
+
+
+//sending and receiving announcements
+static void SendAnnouncement (Ptr<Socket> socket, int result, int index)
+{	
+	std::ostringstream ss;
+	ss << result;
+	std::string message = ss.str();
+	Ptr<Packet> sendPacket =
+	Create<Packet> ((uint8_t*)message.c_str(),message.size());
+	//Ptr<Packet> sendPacket = Create<Packet> (result);
+	
+	MyTag sendTag;
+	sendTag.SetSimpleValue(index);
+	sendPacket->AddPacketTag(sendTag);
+
+    PacketHolder ph(sendPacket);
+    socket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+
+	socket->Send(sendPacket);
+	
+	
+	//std::cout<<"Sending announcement for "<<index<<":"<<message<<"Packet count:"<<AnnouncementPacketCount<<"\n";
+	socket->Close();
+}
+
+void ReceiveAnnouncement (Ptr<Socket> socket)
+{
+	AnnouncementPacketCount-=1;
+	//std::cout<<"Hello\n";
+	Ptr<Packet> recPacket = socket->Recv();	
+	//stage2RecvPacketCount += 1;//increment recv packet counter for stage2
+	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+	//std::cout<<"Receiving announcement"<<"\n";
+	Ptr<Node> recvnode = socket->GetNode();
+	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	recPacket->CopyData(buffer,recPacket->GetSize());
+	
+	std::string recMessage = std::string((char*)buffer);
+	recMessage = recMessage.substr (0,messageLen-1);
+
+	MyTag recTag;
+	recPacket->PeekPacketTag(recTag);
+	int srcNodeIndex =int(recTag.GetSimpleValue());
+	//std::cout<<"Putting announcement in map"<<"\n";
+	appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
+        delete buffer;
+	if(AnnouncementPacketCount==0)
+	{
+	//	std::cout<<"Hello\n";
+		int x=0;
+		//sharedMessage<<resultBit;
+		//xoring outputs
+
+		for(int index=0;index<(int)numNodes;index++)
+		{
+			 x ^= appUtil->getAnnouncement(index);			
+		 		
+		}
+		
+	
+
+		sharedMessage<<x;		
+		AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+		publicKeyCounter = (numNodes * numNodes) - numNodes;
+		randomBitCounter = (numNodes * (numNodes-1)/2);
+		stage2EndTime.push_back(Simulator::Now());
+		Simulator::ScheduleNow (&DCNET,rounds+1);
+	}
+}
+
+
+void DisplayMessage()
+{
+    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+    
+    int bit = Message.at(rounds)-48 ;
+	
+	std::cout<<"Current Round : "<<rounds<<" and current bit : "<<bit<<"\n";
+    for(int index = 0; index < (int)numNodes ; index++)
+    {
+
+		int result = 0;
+        map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
+
+        for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it)
+        {
+
+	std::cout<<"Adj bits of node "<<index<<" : "<<(int)it->second<<"\n";
+            //Exor the adjacent node bits stored in the map
+            result ^= (int)it->second;
+        }
+        if(sender == index)	//exor result with message
+        {
+            result ^= bit;
+        }
+	
+	std::cout<<"Result for Node "<<index<<" is : "<<result<<" in round "<<rounds<<"\n";
+		appUtil->putAnnouncementInGlobalMap(index, result);
+
+	}
+	/*	for(int index=0;index<(int)numNodes;index++)
+		{
+			int r=appUtil->getAnnouncement(index);
+			//std::cout<<"Verifying node "<<index<<" announcement "<<r<<"\n";
+
+		}
+*/
+    //sharedMessage<<result;
+for (int index1 = 0; index1 < (int)numNodes; index1++)
+	{
+		  
+		for (int index2 = 0; index2 < (int)numNodes; index2++)
+		{
+			if(index1 != index2)
+			{
+	
+				Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+				      InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (),9802);
+				      recvNodeSink->Bind (localSocket);
+				      recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
+									    				      
+				      InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9802);
+				Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+				      sourceNodeSocket->Connect (remoteSocket);
+
+
+	Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
+				
+			}	
+		}
+	}
+}
+
+void ReceiveMessage (Ptr<Socket> socket)
+{
+    Ptr<Packet> recPacket = socket->Recv();
+    stage2RecvPacketCount += 1;//increment recv packet counter for stage2
+    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+
+    Ptr<Node> recvnode = socket->GetNode();
+    int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+
+    uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+    recPacket->CopyData(buffer,recPacket->GetSize());
+
+    std::string recMessage = std::string((char*)buffer);
+    recMessage = recMessage.substr (0,messageLen-1);
+
+    MyTag recTag;
+    recPacket->PeekPacketTag(recTag);
+    int srcNodeIndex =int(recTag.GetSimpleValue());
+    std::ostringstream s;
+    s<<srcNodeIndex;
+    std::string ss(s.str());
+    std::ostringstream s1;
+    s1<<recNodeIndex;
+    std::string ss1(s1.str());
+
+    SecByteBlock key(SHA256::DIGESTSIZE);
+    SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex), appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex).size());
+
+    //Decryption using the Shared secret key
+    CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
+    cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
+
+    // std::cout<<"message 4: "<<recMessage<<"\n";
+//	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
+
+    int value = atoi(recMessage.c_str());
+//	std::cout<<"Value :"<<value<<"\n";
+    //put in node's map
+
+    appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
+    appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
+    delete buffer;
+    randomBitCounter--;
+    if(randomBitCounter == 0)
+    {
+	stage1EndTime.push_back(Simulator::Now());
+	stage2StartTime.push_back(Simulator::Now());
+        Simulator::Schedule (Seconds(0.01),&DisplayMessage);
+    }
+}
+
+static void SendMessage (std::string message, int index1, int index2)
+{
+    Ptr<Packet> sendPacket =
+        Create<Packet> ((uint8_t*)message.c_str(),message.size());
+
+    MyTag sendTag;
+    sendTag.SetSimpleValue(index1);
+    sendPacket->AddPacketTag(sendTag);
+
+
+
+        Ptr<Socket> recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localSocket = InetSocketAddress (Ipv4Address::GetAny (), 9801);
+        recvNodeSink->Bind (localSocket);
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+
+        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), 9801);
+        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+        sourceNodeSocket->Connect (remoteSocket);
+
+
+
+
+    PacketHolder ph(sendPacket);
+    sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
+
+
+    sourceNodeSocket->Send (sendPacket);
+    stage2SentPacketCount += 1;//increment sent packet counter for stage2
+    //socket->Close ();
+}
+
+static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
+{
+publicKeyCounter = (numNodes * numNodes) - numNodes;
+    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+    // Generate a random IV
+    rnd.GenerateBlock(iv, AES::BLOCKSIZE);
+
+    //sharing the random bit using dh secret key
+    for (int index1 = 0; index1 < (int)numNodes; index1++)
+    {
+
+        for (int index2 = 0; index2 < (int)numNodes; index2++)
+        {
+            if(index1 < index2)
+            {
+                int randomBit = randomBitGeneratorWithProb(0.5);
+                std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
+
+                //put random bit in both the maps - src and dest maps
+
+                appUtil->putSecretBitInGlobalMap(index1,index2,randomBit);
+                appUtil->putSecretBitInGlobalMap(index2,index1,randomBit);
+
+                // Calculate a SHA-256 hash over the Diffie-Hellman session key
+                SecByteBlock key(SHA256::DIGESTSIZE);
+                SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(index1,index2), appUtil->getSecretKeyFromGlobalMap(index1,index2).size());
+
+                std::ostringstream ss;
+                ss << randomBit;
+                std::string message = ss.str();
+                messageLen = (int)strlen(message.c_str()) + 1;
+
+                // Encrypt
+
+                CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
+                cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
+
+                Simulator::Schedule(Seconds(0.05),&SendMessage, message,index1,index2);
+            }
+        }
+    }
+
+
+}
+
+
+
 void ReceivePublicKey (Ptr<Socket> socket)
 {
     int available = socket->GetRxAvailable ();
@@ -81,7 +347,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
         double jitter = uv->GetValue(0.01,10);
         std::cout << "simulatorloop random="<<jitter<< std::endl;
 
-        //Simulator::Schedule (Seconds(jitter),&SimulatorLoop, tid,c,ipInterfaceContainer);
+        Simulator::Schedule (Seconds(jitter),&SimulatorLoop, tid,c,ipInterfaceContainer);
     }
 
 

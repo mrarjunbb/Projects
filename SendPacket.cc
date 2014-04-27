@@ -94,7 +94,8 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
         publicKeyCounter = (numNodes * numNodes) - numNodes;
         randomBitCounter = (numNodes * (numNodes-1)/2);
         stage2EndTime.push_back(Simulator::Now());
-        Simulator::ScheduleNow (&DCNET,rounds+1);
+        rounds = rounds +1;
+        Simulator::ScheduleNow (&DCNET,rounds);
     }
 }
 
@@ -521,7 +522,7 @@ void DisplayMeasurements()
 
 void DCNET( int numRounds)
 {
-    NS_LOG_LOGIC("Debug : Inside dcnet rounds="<<numRounds<<"messagelen="<<MessageLength);
+    NS_LOG_INFO("Debug : Inside dcnet rounds="<<numRounds<<"messagelen="<<MessageLength);
 
     //finished
     if(numRounds >= MessageLength) {

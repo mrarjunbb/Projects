@@ -74,7 +74,7 @@ int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "10";
+std::string Message = "1011";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 5;  // m
 uint32_t packetSize = 1024; // bytes

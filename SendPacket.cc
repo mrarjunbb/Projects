@@ -57,7 +57,7 @@ static void SendAnnouncement (Ptr<Socket> sourceNodeSocket, int result, int inde
 
 void ReceiveAnnouncement (Ptr<Socket> socket)
 {
-    AnnouncementPacketCount-=1;
+    announcementPacketCounter-=1;
     Ptr<Packet> recPacket = socket->Recv();
     //stage2RecvPacketCount += 1;//increment recv packet counter for stage2
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -73,15 +73,14 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
     MyTag recTag;
     recPacket->PeekPacketTag(recTag);
     int srcNodeIndex =int(recTag.GetSimpleValue());
-    NS_LOG_INFO("receive announcement from "<<srcNodeIndex);
+    NS_LOG_DEBUG("receive announcement from "<<srcNodeIndex);
     appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
     delete buffer;
-    if(AnnouncementPacketCount==0)
+    NS_LOG_INFO("announcementPacketCounter="<<announcementPacketCounter);
+    if(announcementPacketCounter==0)
     {
         int x=0;
-        //sharedMessage<<resultBit;
         //xoring outputs
-
         for(int index=0; index<(int)numNodes; index++)
         {
             x ^= appUtil->getAnnouncement(index);
@@ -91,7 +90,7 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 
 
         sharedMessage<<x;
-        AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+        announcementPacketCounter = (numNodes * numNodes) - numNodes;
         publicKeyCounter = (numNodes * numNodes) - numNodes;
         randomBitCounter = (numNodes * (numNodes-1)/2);
         stage2EndTime.push_back(Simulator::Now());
@@ -109,7 +108,7 @@ void ReceiveAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
 map<int,Ptr<Socket> > sendAnnouncement_ReceiverSocketMap;
 
 
-void DisplayMessage()
+void GenerateAnnouncements()
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 
@@ -138,13 +137,7 @@ void DisplayMessage()
         appUtil->putAnnouncementInGlobalMap(index, result);
 
     }
-    /*	for(int index=0;index<(int)numNodes;index++)
-    	{
-    		int r=appUtil->getAnnouncement(index);
-
-    	}
-    */
-    //sharedMessage<<result;
+    
     for (int index1 = 0; index1 < (int)numNodes; index1++)
     {
 
@@ -188,7 +181,7 @@ void DisplayMessage()
     }
 }
 
-void ReceiveMessage (Ptr<Socket> socket)
+void ReceiveCoinFlip (Ptr<Socket> socket)
 {
     Ptr<Packet> recPacket = socket->Recv();
     stage2RecvPacketCount += 1;//increment recv packet counter for stage2
@@ -221,23 +214,24 @@ void ReceiveMessage (Ptr<Socket> socket)
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
     delete buffer;
     randomBitCounter--;
+    NS_LOG_INFO("randomBitCounter="<<randomBitCounter);
     if(randomBitCounter == 0)
     {
         stage1EndTime.push_back(Simulator::Now());
         stage2StartTime.push_back(Simulator::Now());
-        Simulator::Schedule (Seconds(0.01),&DisplayMessage);
+        Simulator::Schedule (Seconds(0.01),&GenerateAnnouncements);
     }
 }
 
-void ReceiveMessageCallback(Ptr<Socket> socket,const Address& address) {
+void ReceiveCoinFlipCallback(Ptr<Socket> socket,const Address& address) {
     NS_LOG_LOGIC("receivemessagecallback");
-    socket->SetRecvCallback(MakeCallback(&ReceiveMessage));
+    socket->SetRecvCallback(MakeCallback(&ReceiveCoinFlip));
 }
 
 
 map<int,Ptr<Socket> > sendMessage_ReceiverSocketMap;
 
-static void SendMessage (std::string message, int index1, int index2)
+static void SendCoinFlip (std::string message, int index1, int index2)
 {
     Ptr<Packet> sendPacket =
         Create<Packet> ((uint8_t*)message.c_str(),message.size());
@@ -261,9 +255,9 @@ static void SendMessage (std::string message, int index1, int index2)
         retval = recvNodeSink->Bind (localAddress);
         NS_LOG_LOGIC("recvnode bind="<<retval);
         recvNodeSink->Listen();
-        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveCoinFlip));
         recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
-                                        MakeCallback(&ReceiveMessageCallback));
+                                        MakeCallback(&ReceiveCoinFlipCallback));
 
         sendMessage_ReceiverSocketMap[index2] = recvNodeSink;
     }
@@ -283,7 +277,7 @@ static void SendMessage (std::string message, int index1, int index2)
     //sourceNodeSocket->Close ();
 }
 
-static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
+static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
 {
     publicKeyCounter = (numNodes * numNodes) - numNodes;
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -320,7 +314,7 @@ static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
                 CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
                 cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
 
-                Simulator::Schedule(Seconds(0.05),&SendMessage, message,index1,index2);
+                Simulator::Schedule(Seconds(0.05),&SendCoinFlip, message,index1,index2);
             }
         }
     }
@@ -379,7 +373,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
         double jitter = uv->GetValue(0.01,10);
         std::cout << "simulatorloop random="<<jitter<< std::endl;
 
-        Simulator::Schedule (Seconds(jitter),&SimulatorLoop, tid,c,ipInterfaceContainer);
+        Simulator::Schedule (Seconds(jitter),&GenerateCoinFlips, tid,c,ipInterfaceContainer);
     }
 
 
@@ -527,7 +521,7 @@ void DisplayMeasurements()
 
 void DCNET( int numRounds)
 {
-    NS_LOG_LOGIC("Debug : Inside dcnet");
+    NS_LOG_LOGIC("Debug : Inside dcnet rounds="<<numRounds<<"messagelen="<<MessageLength);
 
     //finished
     if(numRounds >= MessageLength) {
@@ -663,7 +657,7 @@ int main (int argc, char *argv[])
     tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
 
-    AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+    announcementPacketCounter = (numNodes * numNodes) - numNodes;
     publicKeyCounter = (numNodes * numNodes) - numNodes;
     randomBitCounter = (numNodes * (numNodes-1)/2);
 

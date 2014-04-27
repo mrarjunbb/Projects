@@ -7,7 +7,7 @@ public:
         this->packet = _packet;
     }
     void SendCallback(Ptr<Socket> socket, uint32_t val) {
-        std::cout<<"send callback"<<std::endl;
+        NS_LOG_LOGIC("send callback");
         socket->Send(this->packet);
         socket->Close();
     }
@@ -36,74 +36,71 @@ int randomBitGeneratorWithProb(double p)
 
 //sending and receiving announcements
 static void SendAnnouncement (Ptr<Socket> sourceNodeSocket, int result, int index)
-{	
-	std::ostringstream ss;
-	ss << result;
-	std::string message = ss.str();
-	Ptr<Packet> sendPacket =
-	Create<Packet> ((uint8_t*)message.c_str(),message.size());
-	
-	MyTag sendTag;
-	sendTag.SetSimpleValue(index);
-	sendPacket->AddPacketTag(sendTag);
+{
+    std::ostringstream ss;
+    ss << result;
+    std::string message = ss.str();
+    Ptr<Packet> sendPacket =
+        Create<Packet> ((uint8_t*)message.c_str(),message.size());
+
+    MyTag sendTag;
+    sendTag.SetSimpleValue(index);
+    sendPacket->AddPacketTag(sendTag);
 
     //PacketHolder* ph = new PacketHolder(sendPacket);
     //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
 
     int retval = sourceNodeSocket->Send(sendPacket);
-    std::cout<<"sourcenode send="<<retval<<std::endl;
+    NS_LOG_LOGIC("sourcenode send="<<retval);
     //sourceNodeSocket->Close();
 }
 
 void ReceiveAnnouncement (Ptr<Socket> socket)
 {
-	AnnouncementPacketCount-=1;
-	//std::cout<<"Hello\n";
-	Ptr<Packet> recPacket = socket->Recv();	
-	//stage2RecvPacketCount += 1;//increment recv packet counter for stage2
-	ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-	//std::cout<<"Receiving announcement"<<"\n";
-	Ptr<Node> recvnode = socket->GetNode();
-	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+    AnnouncementPacketCount-=1;
+    Ptr<Packet> recPacket = socket->Recv();
+    //stage2RecvPacketCount += 1;//increment recv packet counter for stage2
+    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+    Ptr<Node> recvnode = socket->GetNode();
+    int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+    
+    uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+    recPacket->CopyData(buffer,recPacket->GetSize());
 
-	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
-	recPacket->CopyData(buffer,recPacket->GetSize());
-	
-	std::string recMessage = std::string((char*)buffer);
-	recMessage = recMessage.substr (0,messageLen-1);
+    std::string recMessage = std::string((char*)buffer);
+    recMessage = recMessage.substr (0,messageLen-1);
 
-	MyTag recTag;
-	recPacket->PeekPacketTag(recTag);
-	int srcNodeIndex =int(recTag.GetSimpleValue());
-	//std::cout<<"Putting announcement in map"<<"\n";
-	appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
-        delete buffer;
-	if(AnnouncementPacketCount==0)
-	{
-	//	std::cout<<"Hello\n";
-		int x=0;
-		//sharedMessage<<resultBit;
-		//xoring outputs
+    MyTag recTag;
+    recPacket->PeekPacketTag(recTag);
+    int srcNodeIndex =int(recTag.GetSimpleValue());
+    NS_LOG_INFO("receive announcement from "<<srcNodeIndex);
+    appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
+    delete buffer;
+    if(AnnouncementPacketCount==0)
+    {
+        int x=0;
+        //sharedMessage<<resultBit;
+        //xoring outputs
 
-		for(int index=0;index<(int)numNodes;index++)
-		{
-			 x ^= appUtil->getAnnouncement(index);			
-		 		
-		}
-		
-	
+        for(int index=0; index<(int)numNodes; index++)
+        {
+            x ^= appUtil->getAnnouncement(index);
 
-		sharedMessage<<x;		
-		AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
-		publicKeyCounter = (numNodes * numNodes) - numNodes;
-		randomBitCounter = (numNodes * (numNodes-1)/2);
-		stage2EndTime.push_back(Simulator::Now());
-		Simulator::ScheduleNow (&DCNET,rounds+1);
-	}
+        }
+
+
+
+        sharedMessage<<x;
+        AnnouncementPacketCount = (numNodes * numNodes) - numNodes;
+        publicKeyCounter = (numNodes * numNodes) - numNodes;
+        randomBitCounter = (numNodes * (numNodes-1)/2);
+        stage2EndTime.push_back(Simulator::Now());
+        Simulator::ScheduleNow (&DCNET,rounds+1);
+    }
 }
 
 void ReceiveAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
-    std::cout<<"receiveannouncementcallback"<<std::endl;
+    NS_LOG_LOGIC("receiveannouncementcallback");
     socket->SetRecvCallback(MakeCallback(&ReceiveAnnouncement));
 }
 
@@ -115,20 +112,20 @@ map<int,Ptr<Socket> > sendAnnouncement_ReceiverSocketMap;
 void DisplayMessage()
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-    
+
     int bit = Message.at(rounds)-48 ;
-	
-	std::cout<<"Current Round : "<<rounds<<" and current bit : "<<bit<<"\n";
+
+    NS_LOG_LOGIC("Current Round : "<<rounds<<" and current bit : "<<bit);
     for(int index = 0; index < (int)numNodes ; index++)
     {
 
-		int result = 0;
+        int result = 0;
         map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
 
         for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it)
         {
 
-	std::cout<<"Adj bits of node "<<index<<" : "<<(int)it->second<<"\n";
+            NS_LOG_LOGIC("Adj bits of node "<<index<<" : "<<(int)it->second);
             //Exor the adjacent node bits stored in the map
             result ^= (int)it->second;
         }
@@ -136,28 +133,27 @@ void DisplayMessage()
         {
             result ^= bit;
         }
-	
-	std::cout<<"Result for Node "<<index<<" is : "<<result<<" in round "<<rounds<<"\n";
-		appUtil->putAnnouncementInGlobalMap(index, result);
 
-	}
-	/*	for(int index=0;index<(int)numNodes;index++)
-		{
-			int r=appUtil->getAnnouncement(index);
-			//std::cout<<"Verifying node "<<index<<" announcement "<<r<<"\n";
+        NS_LOG_LOGIC("Result for Node "<<index<<" is : "<<result<<" in round "<<rounds);
+        appUtil->putAnnouncementInGlobalMap(index, result);
 
-		}
-*/
+    }
+    /*	for(int index=0;index<(int)numNodes;index++)
+    	{
+    		int r=appUtil->getAnnouncement(index);
+
+    	}
+    */
     //sharedMessage<<result;
-for (int index1 = 0; index1 < (int)numNodes; index1++)
-	{
-		  
-		for (int index2 = 0; index2 < (int)numNodes; index2++)
-		{
-			if(index1 != index2)
-			{
+    for (int index1 = 0; index1 < (int)numNodes; index1++)
+    {
 
-                int port = 9802;                
+        for (int index2 = 0; index2 < (int)numNodes; index2++)
+        {
+            if(index1 != index2)
+            {
+
+                int port = 9802;
 
                 Ptr<Socket> recvNodeSink = NULL;
                 int retval = 0;
@@ -169,13 +165,13 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
 
                     recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
                     InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
-                    std::cout<<"localaddress="<<localAddress<<std::endl;
+                    NS_LOG_LOGIC("localaddress="<<localAddress);
                     retval = recvNodeSink->Bind (localAddress);
-                    std::cout<<"recvnode bind="<<retval<<std::endl;
+                    NS_LOG_LOGIC("recvnode bind="<<retval);
                     recvNodeSink->Listen();
                     recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
                     recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
-		            MakeCallback(&ReceiveAnnouncementCallback));
+                                                    MakeCallback(&ReceiveAnnouncementCallback));
 
                     sendAnnouncement_ReceiverSocketMap[index2] = recvNodeSink;
                 }
@@ -183,13 +179,13 @@ for (int index1 = 0; index1 < (int)numNodes; index1++)
                 InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), port);
                 Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                 retval = sourceNodeSocket->Connect (remoteSocket);
-                std::cout<<"sourcenode connect="<<retval<<std::endl;
+                NS_LOG_LOGIC("sourcenode connect="<<retval);
 
 
-	            Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);				
-			}	
-		}
-	}
+                Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
+            }
+        }
+    }
 }
 
 void ReceiveMessage (Ptr<Socket> socket)
@@ -210,12 +206,6 @@ void ReceiveMessage (Ptr<Socket> socket)
     MyTag recTag;
     recPacket->PeekPacketTag(recTag);
     int srcNodeIndex =int(recTag.GetSimpleValue());
-    std::ostringstream s;
-    s<<srcNodeIndex;
-    std::string ss(s.str());
-    std::ostringstream s1;
-    s1<<recNodeIndex;
-    std::string ss1(s1.str());
 
     SecByteBlock key(SHA256::DIGESTSIZE);
     SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex), appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex).size());
@@ -224,27 +214,23 @@ void ReceiveMessage (Ptr<Socket> socket)
     CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
     cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
 
-    // std::cout<<"message 4: "<<recMessage<<"\n";
-//	NS_LOG_UNCOND ("Received message packet: Data: " +recMessage+"   TagID: "+ss + " to "+ss1+"\n");
 
     int value = atoi(recMessage.c_str());
-//	std::cout<<"Value :"<<value<<"\n";
     //put in node's map
-
     appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
     delete buffer;
     randomBitCounter--;
     if(randomBitCounter == 0)
     {
-	stage1EndTime.push_back(Simulator::Now());
-	stage2StartTime.push_back(Simulator::Now());
+        stage1EndTime.push_back(Simulator::Now());
+        stage2StartTime.push_back(Simulator::Now());
         Simulator::Schedule (Seconds(0.01),&DisplayMessage);
     }
 }
 
 void ReceiveMessageCallback(Ptr<Socket> socket,const Address& address) {
-    std::cout<<"receivemessagecallback"<<std::endl;
+    NS_LOG_LOGIC("receivemessagecallback");
     socket->SetRecvCallback(MakeCallback(&ReceiveMessage));
 }
 
@@ -260,46 +246,46 @@ static void SendMessage (std::string message, int index1, int index2)
     sendTag.SetSimpleValue(index1);
     sendPacket->AddPacketTag(sendTag);
 
-        Ptr<Socket> recvNodeSink =  NULL;
-        int retval = 0;
-        int port = 9801;
-        bool receiver_exists = sendMessage_ReceiverSocketMap.find(index2) != sendMessage_ReceiverSocketMap.end();
-        if(receiver_exists) {
-            recvNodeSink = sendMessage_ReceiverSocketMap[index2];
-        }
-        else {
+    Ptr<Socket> recvNodeSink =  NULL;
+    int retval = 0;
+    int port = 9801;
+    bool receiver_exists = sendMessage_ReceiverSocketMap.find(index2) != sendMessage_ReceiverSocketMap.end();
+    if(receiver_exists) {
+        recvNodeSink = sendMessage_ReceiverSocketMap[index2];
+    }
+    else {
 
-            recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
-            InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
-            std::cout<<"localaddress="<<localAddress<<std::endl;
-            retval = recvNodeSink->Bind (localAddress);
-            std::cout<<"recvnode bind="<<retval<<std::endl;
-            recvNodeSink->Listen();
-            recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
-            recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
-	        MakeCallback(&ReceiveMessageCallback));
+        recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
+        InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
+        NS_LOG_LOGIC("localaddress="<<localAddress);
+        retval = recvNodeSink->Bind (localAddress);
+        NS_LOG_LOGIC("recvnode bind="<<retval);
+        recvNodeSink->Listen();
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveMessage));
+        recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
+                                        MakeCallback(&ReceiveMessageCallback));
 
-            sendMessage_ReceiverSocketMap[index2] = recvNodeSink;
-        }
+        sendMessage_ReceiverSocketMap[index2] = recvNodeSink;
+    }
 
-        InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), port);
-        Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
-        retval = sourceNodeSocket->Connect (remoteSocket);
-        std::cout<<"sourcenode connect="<<retval<<std::endl;
+    InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), port);
+    Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
+    retval = sourceNodeSocket->Connect (remoteSocket);
+    NS_LOG_LOGIC("sourcenode connect="<<retval);
 
     //PacketHolder ph(sendPacket);
     //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,&ph));
 
 
     retval = sourceNodeSocket->Send(sendPacket);
-    std::cout<<"sourcenode send="<<retval<<std::endl;
+    NS_LOG_LOGIC("sourcenode send="<<retval);
     stage2SentPacketCount += 1;//increment sent packet counter for stage2
     //sourceNodeSocket->Close ();
 }
 
 static void SimulatorLoop(TypeId tid, NodeContainer c, Ipv4InterfaceContainer i)
 {
-publicKeyCounter = (numNodes * numNodes) - numNodes;
+    publicKeyCounter = (numNodes * numNodes) - numNodes;
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
     // Generate a random IV
     rnd.GenerateBlock(iv, AES::BLOCKSIZE);
@@ -313,7 +299,7 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
             if(index1 < index2)
             {
                 int randomBit = randomBitGeneratorWithProb(0.5);
-                std::cout<<"Random bit : "<<randomBit<<" "<<index1<<" "<<index2<<"\n";
+                NS_LOG_LOGIC("Random bit : "<<randomBit<<" "<<index1<<" "<<index2);
 
                 //put random bit in both the maps - src and dest maps
 
@@ -347,31 +333,31 @@ publicKeyCounter = (numNodes * numNodes) - numNodes;
 void ReceivePublicKey (Ptr<Socket> socket)
 {
     int available = socket->GetRxAvailable ();
-    std::cout<<"available="<<available<<std::endl;
-    std::cout<<"Debug : Inside dcnet receive public key \n";
+    NS_LOG_LOGIC("available="<<available);
+    NS_LOG_LOGIC("Debug : Inside dcnet receive public key");
     Ptr<Node> recvnode = socket->GetNode();
     int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
-    
+
     Ptr<Packet> recPacket = socket->Recv();
-    std::cout<<"packet tags"<<std::endl;
-    recPacket->PrintPacketTags(std::cout);
-    std::cout<<"done packet tags"<<std::endl;
+    NS_LOG_LOGIC("packet tags");
+    //recPacket->PrintPacketTags(std::cout);
+    NS_LOG_LOGIC("done packet tags");
     stage1RecvPacketCount +=1; //increment received packet count for stage 1
 
     int len = recPacket->GetSize()+1;
-    std::cout<<"packet len="<<len<<std::endl;
+    NS_LOG_LOGIC("packet len="<<len);
     uint8_t *buffer = new uint8_t[len];
     memset(buffer,0,len);
     int copiedlen = recPacket->CopyData(buffer,recPacket->GetSize());
-    std::cout<<"copied len="<<copiedlen<<std::endl;
+    NS_LOG_LOGIC("copied len="<<copiedlen);
     SecByteBlock pubKey((byte *)buffer,recPacket->GetSize());
 
     MyTag recTag;
     recTag.SetSimpleValue(0);
     bool isTag = recPacket->PeekPacketTag(recTag);
     int srcNodeIndex =int(recTag.GetSimpleValue());
-    std::cout<<"isTag="<<isTag<<"tagVal="<<srcNodeIndex<<std::endl;
-    
+    NS_LOG_LOGIC("isTag="<<isTag<<"tagVal="<<srcNodeIndex);
+
     //std::string recvData = hexStr(pubKey.BytePtr(),pubKey.SizeInBytes());
 
 
@@ -384,11 +370,11 @@ void ReceivePublicKey (Ptr<Socket> socket)
     ApplicationUtil::getInstance()->putSecretKeyInGlobalMap(recNodeIndex,srcNodeIndex,sharedKey);
 
     publicKeyCounter--;
-    std::cout<<"Public key counter :"<< publicKeyCounter<< "\n";
+    NS_LOG_INFO("Public key counter :"<< publicKeyCounter);
     //socket->Close();
     if(publicKeyCounter == 0)
     {
-        std::cout<<"Debug : calling simulator loop \n";
+        NS_LOG_LOGIC("Debug : calling simulator loop");
         Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
         double jitter = uv->GetValue(0.01,10);
         std::cout << "simulatorloop random="<<jitter<< std::endl;
@@ -400,7 +386,7 @@ void ReceivePublicKey (Ptr<Socket> socket)
 }
 
 void ReceivePublicKeyCallback(Ptr<Socket> socket,const Address& address) {
-    std::cout<<"receivepublickeycallback"<<std::endl;
+    NS_LOG_LOGIC("receivepublickeycallback");
     socket->SetRecvCallback(MakeCallback(&ReceivePublicKey));
 }
 
@@ -409,16 +395,16 @@ map<int,Ptr<Socket> > sendPublicKey_ReceiverSocketMap;
 
 static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 {
-    std::cout<<"*******************"<<std::endl;
-    std::cout<<"Debug : Inside dcnet send public key index1="<<index1<<" index2="<<index2<<std::endl;
+    NS_LOG_LOGIC("*******************");
+    NS_LOG_LOGIC("Debug : Inside dcnet send public key index1="<<index1<<" index2="<<index2);
 
 
     Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
     MyTag sendTag;
     sendTag.SetSimpleValue(index1);
-    std::cout<<"sendTagVal="<<int(sendTag.GetSimpleValue())<<std::endl;
+    NS_LOG_LOGIC("sendTagVal="<<int(sendTag.GetSimpleValue()));
     sendPacket->AddPacketTag(sendTag);
-    sendPacket->PrintPacketTags(std::cout);
+    //sendPacket->PrintPacketTags(std::cout);
 
     Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
     int randomport = uv->GetInteger(1025,65530);
@@ -434,13 +420,13 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
 
         recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
         InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),randomport);
-        std::cout<<"localaddress="<<localAddress<<std::endl;
+        NS_LOG_LOGIC("localaddress="<<localAddress);
         retval = recvNodeSink->Bind (localAddress);
-        std::cout<<"recvnode bind="<<retval<<std::endl;
+        NS_LOG_LOGIC("recvnode bind="<<retval);
         recvNodeSink->Listen();
         recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
         recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
-		MakeCallback(&ReceivePublicKeyCallback));
+                                        MakeCallback(&ReceivePublicKeyCallback));
 
         sendPublicKey_ReceiverSocketMap[index2] = recvNodeSink;
     }
@@ -448,7 +434,7 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
     retval = sourceNodeSocket->Connect (remoteSocket);
-    std::cout<<"sourcenode connect="<<retval<<std::endl;
+    NS_LOG_LOGIC("sourcenode connect="<<retval);
 
 
 
@@ -456,7 +442,7 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
 
     retval = sourceNodeSocket->Send(sendPacket);
-    std::cout<<"sourcenode send="<<retval<<std::endl;
+    NS_LOG_LOGIC("sourcenode send="<<retval);
     stage1SentPacketCount += 1;//increment sent packet counter for stage1
     //std::string sendData = hexStr(pub.BytePtr(),pub.SizeInBytes());
 
@@ -497,7 +483,6 @@ void generateKeys(int index)
         appUtil->putPublicKeyInMap(index,pub);
         appUtil->setDhAgreedLength(dh.AgreedValueLength());
 
-        //	std::cout<<"Dh key length "<< index <<" : "<<dh.AgreedValueLength()<<"\n";
     }
     catch(const CryptoPP::Exception& e)
     {
@@ -512,24 +497,23 @@ void generateKeys(int index)
 
 void DisplayMeasurements()
 {
-    std::cout<<"Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str()<<"\n";
-    std::cout<<"Sent Packet Count Stage 1: "<<stage1SentPacketCount<<"\n";
-    std::cout<<"Sent Packet Count Stage 2: "<<stage2SentPacketCount<<"\n";
-    std::cout<<"Sent Recv Count Stage 1: "<<stage1RecvPacketCount<<"\n";
-    std::cout<<"Sent Recv Count Stage 2: "<<stage2RecvPacketCount<<"\n";
+    NS_LOG_INFO("Shared Message after "<<MessageLength<<" rounds is : "<<sharedMessage.str());
+    NS_LOG_INFO("Sent Packet Count Stage 1: "<<stage1SentPacketCount);
+    NS_LOG_INFO("Sent Packet Count Stage 2: "<<stage2SentPacketCount);
+    NS_LOG_INFO("Sent Recv Count Stage 1: "<<stage1RecvPacketCount);
+    NS_LOG_INFO("Sent Recv Count Stage 2: "<<stage2RecvPacketCount);
 
     stage1Latency = (stage1EndTime.front().GetSeconds() - stage1StartTime.front().GetSeconds());
-    std::cout<<"Stage 1 latency: "<<stage1Latency<<"\n";
+    NS_LOG_LOGIC("Stage 1 latency: "<<stage1Latency);
 
     stage2Latency = (stage2EndTime.front().GetSeconds() - stage2StartTime.front().GetSeconds());
-    std::cout<<"Stage 2 latency: "<<stage2Latency<<"\n";
+    NS_LOG_LOGIC("Stage 2 latency: "<<stage2Latency);
 
     totalLatency = (stage1Latency + stage2Latency);
-    // std::cout<<"goodPut: "<<goodPut<<"\n";
 
     totalTimeEnd = Simulator::Now();
     totalRunningTime = totalTimeEnd.GetSeconds() - totalTimeStart.GetSeconds();
-    std::cout<<"Total time taken : "<<totalRunningTime<<" seconds\n";
+    NS_LOG_INFO("Total time taken : "<<totalRunningTime<<" seconds");
 
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 //output to csv
@@ -543,7 +527,7 @@ void DisplayMeasurements()
 
 void DCNET( int numRounds)
 {
-    std::cout<<"Debug : Inside dcnet\n";
+    NS_LOG_LOGIC("Debug : Inside dcnet");
 
     //finished
     if(numRounds >= MessageLength) {
@@ -567,10 +551,10 @@ void DCNET( int numRounds)
         {
             if(index1 != index2)
             {
-                std::cout<<"Debug : Inside dcnet  1\n";
+                NS_LOG_LOGIC("Debug : Inside dcnet  1");
                 Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
                 double jitter = uv->GetValue(100,200);
-                std::cout << "sendpublickey random="<<jitter<< std::endl;
+                NS_LOG_LOGIC("sendpublickey random="<<jitter);
                 Simulator::Schedule (Seconds(jitter),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
             }
         }
@@ -588,7 +572,7 @@ int main (int argc, char *argv[])
 
     CommandLine cmd;
 
-    std::cout<<"argc : "<<argc<<"\n";
+    NS_LOG_LOGIC("argc : "<<argc);
 
     cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
     cmd.AddValue ("message", "Actual Message", Message);
@@ -684,9 +668,9 @@ int main (int argc, char *argv[])
     randomBitCounter = (numNodes * (numNodes-1)/2);
 
 
-    std::cout<<"Actual Message : "<<Message<<"\n";
+    NS_LOG_LOGIC("Actual Message : "<<Message);
     MessageLength = (int)strlen(Message.c_str()) ;
-    std::cout<<"Message length:"<<MessageLength<<"\n";
+    NS_LOG_LOGIC("Message length:"<<MessageLength);
     stage1StartTime.push_back(Simulator::Now());
     totalTimeStart = Simulator::Now();
     RngSeedManager::SetSeed (30);

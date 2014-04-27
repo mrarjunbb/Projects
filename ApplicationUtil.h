@@ -86,7 +86,7 @@ uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
 double keyExchangeInterval = 5.0; // seconds
 bool verbose = false;
-bool tracing = true;
+bool tracing = false;
 int messageLen=0;	
 
 int aesKeyLength = SHA256::DIGESTSIZE;
@@ -249,13 +249,11 @@ SecByteBlock ApplicationUtil::getSecretKeyFromGlobalMap(int nodeId, int destNode
 			return p1->second;
 		else 
 		{
-			std::cout<<"hello";
 			return SecByteBlock(0);
 		}
 	}
 	else 
 		{
-			std::cout<<"hello1";
 			return SecByteBlock(0);
 		}	
 }
@@ -293,13 +291,11 @@ int ApplicationUtil::getSecretBitFromGlobalMap(int nodeId, int destNodeId)
 			return p1->second;
 		else 
 		{
-			std::cout<<"hello";
 			return -99;
 		}
 	}
 	else 
 		{
-			std::cout<<"hello1";
 			return -99;
 		}	
 }
@@ -344,23 +340,18 @@ void ApplicationUtil::eraseSecretBitMapGlobal()
 //swati
 void ApplicationUtil::putAnnouncementInGlobalMap(int nodeId, int value)
 {
-
-	//std::cout<<"Node "<<nodeId<<" stores "<<value<<"\n";
-
 	map<int,int>::iterator p;
 	p = announcement.find(nodeId);
 	if(p != announcement.end())
 		announcement[nodeId] = value;
 	else
 	announcement.insert(pair<int,int>(nodeId,value));
-//	std::cout<<"Finds "<<ApplicationUtil::getAnnouncement(nodeId)<<"\n";
 }					
 
 int ApplicationUtil::getAnnouncement(int nodeId)
 {
 	map<int,int>::iterator p;
 	p = announcement.find(nodeId);
-	//std::cout<<"Node "<<nodeId<<" stores "<<p->second<<"\n";
 	return p->second;
 }
 void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, int value)
@@ -376,7 +367,6 @@ void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, i
 		else
 		p->second.insert(pair<int,int>(senderNode,value));
 
-	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
 		
 	}
 	else
@@ -384,7 +374,6 @@ void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, i
 		map<int,int> tempMap;	
 		tempMap.insert(pair<int,int>(senderNode,value));
 		receivedAnnouncement.insert(pair<int,map<int,int> >(nodeId,tempMap));
-	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
 	}
 }
 int ApplicationUtil::getReceivedAnnouncement(int nodeId, int senderNodeId)
@@ -400,13 +389,11 @@ int ApplicationUtil::getReceivedAnnouncement(int nodeId, int senderNodeId)
 			return p1->second;
 		else 
 		{
-			std::cout<<"hello";
 			return -99;
 		}
 	}
 	else 
 		{
-			std::cout<<"hello1";
 			return -99;
 		}	
 }

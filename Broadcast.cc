@@ -14,9 +14,9 @@
 #include "ns3/uan-noise-model-default.h"
 #include "ns3/nstime.h"
 #include "ns3/command-line.h"
-#include "crypto++/aes.h" 
-#include "crypto++/modes.h"
-#include "crypto++/integer.h"
+#include "cryptopp/aes.h" 
+#include "cryptopp/modes.h"
+#include "cryptopp/integer.h"
 
 using namespace ns3;
 using namespace CryptoPP;

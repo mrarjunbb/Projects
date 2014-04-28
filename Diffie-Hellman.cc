@@ -14,9 +14,9 @@
 #include "ns3/uan-noise-model-default.h"
 #include "ns3/nstime.h"
 #include "ns3/command-line.h"
-#include "crypto++/aes.h" 
-#include "crypto++/modes.h"
-#include "crypto++/integer.h"
+#include "cryptopp/aes.h" 
+#include "cryptopp/modes.h"
+#include "cryptopp/integer.h"
 
 
 using namespace ns3;
@@ -30,23 +30,23 @@ using std::string;
 #include <stdexcept>
 using std::runtime_error;
 
-#include "crypto++/osrng.h"
+#include "cryptopp/osrng.h"
 using CryptoPP::AutoSeededRandomPool;
 
 
-#include "crypto++/nbtheory.h"
+#include "cryptopp/nbtheory.h"
 using CryptoPP::ModularExponentiation;
 
-#include "crypto++/dh.h"
+#include "cryptopp/dh.h"
 using CryptoPP::DH;
 
-#include "crypto++/secblock.h"
+#include "cryptopp/secblock.h"
 using CryptoPP::SecByteBlock;
 
-#include <crypto++/hex.h>
+#include <cryptopp/hex.h>
 using CryptoPP::HexEncoder;
 
-#include <crypto++/filters.h>
+#include <cryptopp/filters.h>
 using CryptoPP::StringSink;
 
 

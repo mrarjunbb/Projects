@@ -1,4 +1,5 @@
 #include "ApplicationUtil.h"
+
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
 class PacketHolder {
@@ -711,7 +712,7 @@ int main (int argc, char *argv[])
 
         // To do-- enable an IP-level trace that shows forwarding events only
     }
-    AnimationInterface anim ("DCNEt.xml");
+    //AnimationInterface anim ("DCNEt.xml");
     Simulator::Run ();
     Simulator::Destroy ();
 

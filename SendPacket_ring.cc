@@ -578,8 +578,8 @@ void DCNET( int numRounds)
     //finished
     if(numRounds >= MessageLength) {
         DisplayMeasurements();
-		ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-		appUtil->RemoveInstance();
+		//ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+		//appUtil->RemoveInstance();
         return;
     }
 
@@ -709,7 +709,7 @@ int main (int argc, char *argv[])
     ipv4.SetBase ("10.1.1.0", "255.255.255.0");
     ipInterfaceContainer = ipv4.Assign (devices);
 
-    tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+     tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
 
     announcementPacketCounter = (numNodes * numNodes) - numNodes;

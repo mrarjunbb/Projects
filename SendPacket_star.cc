@@ -1,4 +1,6 @@
 #include "ApplicationUtil.h"
+#include "ns3/flow-monitor-module.h" 
+#include "ns3/netanim-module.h"
 
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 
@@ -29,8 +31,12 @@ std::string hexStr(byte *data, int len)
 
 int randomBitGeneratorWithProb(double p)
 {
-    double rndDouble = (double)rand() / RAND_MAX;
-    return rndDouble > p;
+   // double rndDouble = (double)rand() / RAND_MAX;
+    //return rndDouble > p;
+	Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+	int rand = uv->GetInteger(0,1);
+   // std::cout <<"random variable generated is "<<rand << "\n";
+    return rand;
 }
 
 
@@ -555,6 +561,7 @@ void DCNET( int numRounds)
 
     //finished
     if(numRounds >= MessageLength) {
+		 Simulator::Stop ();
         DisplayMeasurements();
         return;
     }
@@ -668,12 +675,14 @@ int main (int argc, char *argv[])
     mobility.Install (c);
 
 
-    Ipv4StaticRoutingHelper staticRouting;
+ // Ipv4StaticRoutingHelper staticRouting;
+   OlsrHelper OLSR;
+   Ipv4ListRoutingHelper list;
+   list.Add (OLSR, 0);
 
-    Ipv4ListRoutingHelper list;
-    list.Add (staticRouting, 0);
-
-
+    //AodvHelper aodv;   // you can configure AODV attributes here using aodv.Set(name, value)
+	//InternetStackHelper internet;
+//	internet.SetRoutingHelper (aodv); // has effect on the next Install ()
 
     InternetStackHelper internet;
     internet.SetRoutingHelper (list); // has effect on the next Install ()
@@ -712,11 +721,38 @@ int main (int argc, char *argv[])
 
         // To do-- enable an IP-level trace that shows forwarding events only
     }
-    //AnimationInterface anim ("DCNEt.xml");
+   
+	AnimationInterface anim("dcnet_net_anim_star.xml");
+	anim.EnablePacketMetadata(true);
+    FlowMonitorHelper flowmon;
+	Ptr<FlowMonitor> monitor = flowmon.InstallAll();    
     Simulator::Run ();
+	monitor->CheckForLostPackets (); 
+    Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
+    std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
+	uint32_t txPacketsum = 0;
+    uint32_t rxPacketsum = 0;
+    uint32_t DropPacketsum = 0;
+    uint32_t LostPacketsum = 0;
+    double Delaysum = 0;
+	for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i =stats.begin (); i != stats.end (); i++) {
+        txPacketsum += i->second.txPackets;
+        rxPacketsum += i->second.rxPackets;
+        LostPacketsum += i->second.lostPackets;
+        DropPacketsum += i->second.packetsDropped.size();
+        Delaysum += i->second.delaySum.GetSeconds();
+  
+	}
+	std::cout << "  All Tx Packets: " << txPacketsum << "\n";
+    std::cout << "  All Rx Packets: " << rxPacketsum << "\n";
+    std::cout << "  All Delay: " << Delaysum / txPacketsum <<"\n";
+    std::cout << "  All Lost Packets: " << LostPacketsum << "\n";
+    std::cout << "  All Drop Packets: " << DropPacketsum << "\n";
+    std::cout << "  Packets Delivery Ratio: " << ((rxPacketsum *100) /txPacketsum) << "%" << "\n";
+    std::cout << "  Packets Lost Ratio: " << ((LostPacketsum *100) /txPacketsum) << "%" << "\n";
+    monitor->SerializeToXmlFile("dcnet_star.flowmon",true,true);
+  
     Simulator::Destroy ();
-
-
-    return 0;
+	return 0;
 }
 

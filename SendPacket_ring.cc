@@ -91,12 +91,13 @@ void ReceiveBroadcastAnnouncement(Ptr<Socket> socket)
     std::string recMessage = std::string((char*)buffer);
     recMessage = recMessage.substr (0,messageLen-1);
     delete buffer;
-	std::cout <<"message received is "<< recMessage <<"\n";
+	//std::cout <<"message received is "<< recMessage <<"\n";
    	socket->Close();
 }
 
 void ReceiveAnnouncement (Ptr<Socket> socket)
 {
+    
     announcementPacketCounter-=1;
     Ptr<Packet> recPacket = socket->Recv();
     //stage2RecvPacketCount += 1;//increment recv packet counter for stage2
@@ -113,13 +114,18 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
     MyTag recTag;
     recPacket->PeekPacketTag(recTag);
     int srcNodeIndex =int(recTag.GetSimpleValue());
-    NS_LOG_DEBUG("receive announcement from "<<srcNodeIndex);
-    appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, atoi(recMessage.c_str()));
     delete buffer;
     socket->Close();
-    NS_LOG_INFO("announcementPacketCounter="<<announcementPacketCounter);
     int x=0;
-  	x =  atoi(recMessage.c_str())^ appUtil->getAnnouncement(recNodeIndex);
+    int currentnode_result = 0;
+    map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(recNodeIndex);
+    for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
+    	//NS_LOG_LOGIC("Adj bits of node "<<index<<" : "<<(int)it->second);
+		//std::cout << "secret bit is " << (int)it->second << "\n";
+        currentnode_result ^= (int)it->second;
+    }
+   // std::cout << "node " <<  recNodeIndex << "secret bit result is" <<  currentnode_result << "\n";
+  	x =  atoi(recMessage.c_str())^ currentnode_result;
 	//std::cout << "received message from node  " <<srcNodeIndex << "and message is" << atoi(recMessage.c_str()) <<"\n";
     //std::cout << "current message at current node is" << appUtil->getAnnouncement(recNodeIndex) <<std::endl;
     //std::cout << "sending message from node  " <<recNodeIndex <<"and message is" <<  x <<"\n";
@@ -130,40 +136,31 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
 		Ptr<Socket> recvNodeSink = NULL;
 		recvNodeSink = Socket::CreateSocket (c.Get (recNodeIndex+1), tid);
 		InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
-		NS_LOG_LOGIC("localaddress="<<localAddress);
+		//NS_LOG_LOGIC("localaddress="<<localAddress);
 		retval = recvNodeSink->Bind (localAddress);
 		NS_LOG_LOGIC("recvnode bind="<<retval);
 		recvNodeSink->Listen();
 		recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncement));
-		//recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
-		                                              //  MakeCallback(&ReceiveAnnouncementCallback));
 		InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (recNodeIndex+1, 0), port);
 		Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (srcNodeIndex), tid);
 		retval = sourceNodeSocket->Connect (remoteSocket);
-		NS_LOG_LOGIC("sourcenode connect="<<retval);
+		//NS_LOG_LOGIC("sourcenode connect="<<retval);
 		Simulator::Schedule (Seconds(0.02),&SendAnnouncement, sourceNodeSocket,x, recNodeIndex);
 	}
     else {
 
-		//x =  atoi(recMessage.c_str())^ appUtil->getAnnouncement(recNodeIndex);
-        //socket->Close();
+	
 		//std::cout << "in node " << recNodeIndex <<"\n";
-        std::cout << "message received "<< x << "\n";
+     //   std::cout << "message received "<< x << "\n";
+		std::cout << "Node" <<recNodeIndex <<"is broadcasting the message " << x <<  "\n";
 		int port = 9806;
 		int retval;
-		//Ptr<Socket> recvNodeSink =NULL;	
-		x=0;
-		for(int index=0; index<(int)numNodes; index++)
-        {
-            x ^= appUtil->getAnnouncement(index);
-
-        }
-        for(int index = 0; index < (int)numNodes-1 ; index++) {
+		for(int index = 0; index < (int)numNodes-1 ; index++) {
         	Ptr<Socket> recvNodeSink  = Socket::CreateSocket (c.Get (index), tid);
         	InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
-        	NS_LOG_LOGIC("localaddress="<<localAddress);
+        	//NS_LOG_LOGIC("localaddress="<<localAddress);
         	retval = recvNodeSink->Bind (localAddress);
-        	NS_LOG_LOGIC("recvnode bind="<<retval);
+        	//NS_LOG_LOGIC("recvnode bind="<<retval);
         	recvNodeSink->Listen();
             recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveBroadcastAnnouncement));
         }
@@ -180,8 +177,8 @@ void ReceiveAnnouncement (Ptr<Socket> socket)
         stage2EndTime.push_back(Simulator::Now());
         rounds = rounds +1;
         Simulator::ScheduleNow (&DCNET,rounds);
+        
     }
-    
 }
 
 void ReceiveAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
@@ -191,35 +188,19 @@ void ReceiveAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
 
 void GenerateAnnouncements()
 {
+   
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-
     int bit = Message.at(rounds)-48 ;
-
-    NS_LOG_LOGIC("Current Round : "<<rounds<<" and current bit : "<<bit);
-    for(int index = 0; index < (int)numNodes ; index++)
-    {
-
-        int result = 0;
-        map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
-
-        for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it)
-        {
-
-            NS_LOG_LOGIC("Adj bits of node "<<index<<" : "<<(int)it->second);
-            //Exor the adjacent node bits stored in the map
-            result ^= (int)it->second;
-        }
-        if(sender == index)	//exor result with message
-        {
-            result ^= bit;
-        }
-
-        NS_LOG_LOGIC("Result for Node "<<index<<" is : "<<result<<" in round "<<rounds);
-       // std::cout << "Result for Node "<<index<<" is : "<<result<<" in round "<<rounds <<"\n";
-        appUtil->putAnnouncementInGlobalMap(index, result);
-
+    int result = 0;
+    map<int,int> NodeSecretBitMap = appUtil->getSecretBitSubMap(0);
+    for (map<int,int>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
+		//std::cout << "current node's neighbor secret bit is " << (int)it->second << "\n";
+    	result ^= (int)it->second;
     }
-    /* send message based on topology */
+	//std::cout << "result of node 0 shared bits is " << result <<"\n";
+    result ^= bit;
+    //std::cout << "secret bit to be send is " << bit << "\n";
+	//std::cout << "node 0 is sending the bit " << result <<"\n";
     int port = 9805;
     int retval;
     Ptr<Socket> recvNodeSink = NULL;
@@ -236,7 +217,8 @@ void GenerateAnnouncements()
     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (0), tid);
     retval = sourceNodeSocket->Connect (remoteSocket);
     NS_LOG_LOGIC("sourcenode connect="<<retval);
-    Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,appUtil->getAnnouncement(0), 0);
+    Simulator::Schedule (Seconds(0.01),&SendAnnouncement, sourceNodeSocket,result, 0);
+    
     
 }
 
@@ -263,11 +245,17 @@ void ReceiveCoinFlip (Ptr<Socket> socket)
     SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex), appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex).size());
 
     //Decryption using the Shared secret key
-    CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
-    cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
+    //CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
+    //cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
 
 
-    int value = atoi(recMessage.c_str());
+    
+     std::string decrypted, dec;
+	CFB_Mode<AES>::Decryption cfbDecryption;
+	cfbDecryption.SetKeyWithIV( key, AESkey.size(), AESiv );
+	StringSource ss( recMessage, true, new StreamTransformationFilter( cfbDecryption,new StringSink( dec ))); 
+      int value = atoi(dec.c_str());
+   // std::cout << "value received is " << value << "\n";
     //put in node's map
     appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
@@ -353,7 +341,7 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
             {
                 int randomBit = randomBitGeneratorWithProb(0.5);
                 NS_LOG_LOGIC("Random bit : "<<randomBit<<" "<<index1<<" "<<index2);
-
+                //std::cout << "random bit generated is " << randomBit << "\n";
                 //put random bit in both the maps - src and dest maps
 
                 appUtil->putSecretBitInGlobalMap(index1,index2,randomBit);
@@ -367,13 +355,19 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
                 ss << randomBit;
                 std::string message = ss.str();
                 messageLen = (int)strlen(message.c_str()) + 1;
-
+                CFB_Mode<AES>::Encryption cfbEncryption;
+			    cfbEncryption.SetKeyWithIV( key, AESkey.size(), AESiv );
+				std::string encrypted, enc;
+				StringSource( message, true, new StreamTransformationFilter( cfbEncryption,
+		    				   new StringSink( encrypted )
+							  ) // StreamTransformationFilter      
+		        );
                 // Encrypt
 
-                CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
-                cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
+               // CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
+                //cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
 
-                Simulator::Schedule(Seconds(0.05),&SendCoinFlip, message,index1,index2);
+                Simulator::Schedule(Seconds(0.05),&SendCoinFlip, encrypted,index1,index2);
             }
         }
     }
@@ -584,7 +578,7 @@ void DCNET( int numRounds)
 
     //finished
     if(numRounds >= MessageLength) {
-		 Simulator::Stop ();
+		 Simulator::Stop (Seconds(3.0));
         DisplayMeasurements();
 		//ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 		//appUtil->RemoveInstance();

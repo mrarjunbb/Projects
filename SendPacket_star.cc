@@ -92,6 +92,7 @@ void ReceiveBroadcastAnnouncement(Ptr<Socket> socket)
 void ReceiveAnnouncement (Ptr<Socket> socket)
 {
     announcementPacketCounter-=1;
+
     Ptr<Packet> recPacket = socket->Recv();
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
     Ptr<Node> recvnode = socket->GetNode();
@@ -163,9 +164,7 @@ map<int,Ptr<Socket> > sendAnnouncement_ReceiverSocketMap;
 void GenerateAnnouncements()
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
-
     int bit = Message.at(rounds)-48 ;
-
     NS_LOG_LOGIC("Current Round : "<<rounds<<" and current bit : "<<bit);
     /* this logic is each node gets its adjacent bits and xor the data and place it in global map */
     for(int index = 0; index < (int)numNodes ; index++)
@@ -193,8 +192,7 @@ void GenerateAnnouncements()
     }
     /* now time to send it to node based on topology */
    // std::cout << "Sending announcement to numNodes-1 " << (int)numNodes-1 << "\n";
-   	for (int index1 = 0; index1 < (int)numNodes-1; index1++) {
-		
+   for (int index1 = 0; index1 < (int)numNodes-1; index1++) {
 		int retval;
 		int port = 9802;
     	Ptr<Socket> recvNodeSink  = Socket::CreateSocket (c.Get ((int)numNodes-1), tid);
@@ -239,12 +237,11 @@ void ReceiveCoinFlip (Ptr<Socket> socket)
     SecByteBlock key(SHA256::DIGESTSIZE);
     SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex), appUtil->getSecretKeyFromGlobalMap(srcNodeIndex,recNodeIndex).size());
 
-    //Decryption using the Shared secret key
-    CFB_Mode<AES>::Decryption cfbDecryption(key, aesKeyLength, iv);
-    cfbDecryption.ProcessData((byte*)recMessage.c_str(), (byte*)recMessage.c_str(), messageLen);
-
-
-    int value = atoi(recMessage.c_str());
+    std::string decrypted, dec;
+	CFB_Mode<AES>::Decryption cfbDecryption;
+	cfbDecryption.SetKeyWithIV( key, AESkey.size(), AESiv );
+	StringSource ss( recMessage, true, new StreamTransformationFilter( cfbDecryption,new StringSink( dec ))); 
+      int value = atoi(dec.c_str());
     //put in node's map
     appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,value);
     appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,value);
@@ -347,10 +344,15 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
 
                 // Encrypt
 
-                CFB_Mode<AES>::Encryption cfbEncryption(key, aesKeyLength, iv);
-                cfbEncryption.ProcessData((byte*)message.c_str(), (byte*)message.c_str(), messageLen);
+                CFB_Mode<AES>::Encryption cfbEncryption;
+			    cfbEncryption.SetKeyWithIV( key, AESkey.size(), AESiv );
+				std::string encrypted, enc;
+				StringSource( message, true, new StreamTransformationFilter( cfbEncryption,
+		    				   new StringSink( encrypted )
+							  ) // StreamTransformationFilter      
+		        );
 
-                Simulator::Schedule(Seconds(0.05),&SendCoinFlip, message,index1,index2);
+                Simulator::Schedule(Seconds(0.05),&SendCoinFlip, encrypted,index1,index2);
             }
         }
     }

@@ -74,12 +74,12 @@ int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "1011";
+std::string Message = "00111";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 5;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 10;  // by default, 5x5
+int numNodes = 4;  // by default, 5x5
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
@@ -89,6 +89,8 @@ bool tracing = false;
 int messageLen=0;	
 
 int aesKeyLength = SHA256::DIGESTSIZE;
+byte AESiv[AES::BLOCKSIZE];
+SecByteBlock AESkey(0x00, AES::DEFAULT_KEYLENGTH);
 AutoSeededRandomPool rnd;
 byte iv[AES::BLOCKSIZE];	
 SecByteBlock key(SHA256::DIGESTSIZE);

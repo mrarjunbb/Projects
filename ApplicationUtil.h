@@ -64,22 +64,18 @@ NodeContainer c;
 //Ptr<Socket> source;
 int option;
 
-//int nodeSpeed = 20; //in m/s
-//int nodePause = 0; //in s
-//double txp = 7.5;
-
 
 int rounds = 0;
 int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "00111";
+std::string Message = "101";
 std::string phyMode ("ErpOfdmRate54Mbps");
-double distance = 5;  // m
+double distance = 1;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 4;  // by default, 5x5
+int numNodes = 50;  
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
@@ -87,6 +83,8 @@ double keyExchangeInterval = 5.0; // seconds
 bool verbose = false;
 bool tracing = false;
 int messageLen=0;	
+std::string protocol="tcp";
+std::string topology="ring";
 
 int aesKeyLength = SHA256::DIGESTSIZE;
 byte AESiv[AES::BLOCKSIZE];

@@ -73,9 +73,9 @@ int sender = 0;
 std::string Message = "10101";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 1;  // m
-uint32_t packetSize = 1024; // bytes
+uint32_t packetSize =2048; // bytes
 uint32_t numPackets = 60;
-int numNodes = 13;  
+int numNodes = 20;  
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds

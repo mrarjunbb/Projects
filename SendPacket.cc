@@ -51,9 +51,7 @@ std::string PseudoRandomGenerator(unsigned int SEEDSIZE)
        	convert << randomBit;
     }
 	result = convert.str();
-	//std::cout << "random string is" << result << "\n";
-    return result;
-	
+	return result;
 }
 
 static void SendAnnouncementForFullyConnected (Ptr<Socket> sourceNodeSocket, std::string result, int index)
@@ -77,19 +75,13 @@ static void SendAnnouncementForStar (Ptr<Socket> sourceNodeSocket, std::string r
     std::string message = result;
     Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     MyTag sendTag;
-	//std::cout << "tag value added is" << index << "\n";
-    sendTag.SetSimpleValue(index);
+	sendTag.SetSimpleValue(index);
 	if(protocol=="udp")
     	sendPacket->AddPacketTag(sendTag);
     else
 		sendPacket->AddByteTag(sendTag);
-    //PacketHolder* ph = new PacketHolder(sendPacket);
-    //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
-
     int retval = sourceNodeSocket->Send(sendPacket);
     NS_LOG_LOGIC("sourcenode send="<<retval);
-	//std::cout << "ret val is " << retval << "\n";
-    //sourceNodeSocket->Close();
 }
 
 static void SendAnnouncementForRing (Ptr<Socket> sourceNodeSocket, std::string result, int index)
@@ -98,19 +90,15 @@ static void SendAnnouncementForRing (Ptr<Socket> sourceNodeSocket, std::string r
        std::string message = result;
     Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     MyTag sendTag;
-	//std::cout << "tag value added is" << index << "\n";
-    sendTag.SetSimpleValue(index);
+	sendTag.SetSimpleValue(index);
 	if(protocol=="udp")
     	sendPacket->AddPacketTag(sendTag);
     else
 		sendPacket->AddByteTag(sendTag);
-    //PacketHolder* ph = new PacketHolder(sendPacket);
-    //sourceNodeSocket->SetSendCallback(MakeCallback(&PacketHolder::SendCallback,ph));
-
     int retval = sourceNodeSocket->Send(sendPacket);
     NS_LOG_LOGIC("sourcenode send="<<retval);
-	//std::cout << "ret val is " << retval << "\n";
 }
+
 //sendbroadcast announcement
 
 static void SendBroadcastAnnouncement (Ptr<Socket> sourceNodeSocket, std::string result, int index)
@@ -180,17 +168,15 @@ static void ReceiveAnnouncementForFullyConnected (Ptr<Socket> socket)
     if(protocol=="udp")
     	recPacket->PeekPacketTag(recTag);
 	else {
-		//std::cout << "retrieve packet tag using tcp\n";
-		//bool istag=recPacket->FindFirstMatchingByteTag(recTag);
-		//std::cout << "tag found is " <<istag << "\n";
-   }
+		
+		recPacket->FindFirstMatchingByteTag(recTag);
+    }
     int srcNodeIndex =int(recTag.GetSimpleValue());
     NS_LOG_DEBUG("receive announcement from "<<srcNodeIndex);
     appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex, recMessage);
     delete buffer;
     NS_LOG_INFO("announcementPacketCounter="<<announcementPacketCounter);
-	//std::cout <<"announcementPacketCounter="<<announcementPacketCounter;
-    if(announcementPacketCounter==0)
+	if(announcementPacketCounter==0)
     {
     	for(int round = 0 ; round < MessageLength ; round++) {
 			int x=0;
@@ -231,14 +217,11 @@ static void ReceiveAnnouncementForStar (Ptr<Socket> socket)
 	}
     int srcNodeIndex =int(recTag.GetSimpleValue());
 	NS_LOG_DEBUG("receive announcement from "<<srcNodeIndex);
-    //std::cout << "received announcement from " << srcNodeIndex <<"\n";
     appUtil->putAnnouncementInReceivedMap(recNodeIndex, srcNodeIndex,recMessage.c_str());
     delete buffer;
     NS_LOG_INFO("announcementPacketCounter="<<announcementPacketCounter);
-	//std::cout << "announcementPacketCounter in star is " << announcementPacketCounter << "\n";
     if(announcementPacketCounter==0)
     {
-        
         //xoring outputs
         for(int round = 0 ; round < MessageLength ; round++)
 		{
@@ -272,8 +255,6 @@ static void ReceiveAnnouncementForStar (Ptr<Socket> socket)
         retval = sourceNodeSocket->Connect (remoteSocket);
 		NS_LOG_LOGIC("sourcenode connect="<<retval);
         Simulator::Schedule (Seconds(0.03),&SendBroadcastAnnouncement, sourceNodeSocket,sharedMessage.str(),(int) numNodes-1); 
-
-        //std::cout << "message sent="<<x<< std::endl;
         announcementPacketCounter = numNodes-1;
         publicKeyCounter = (numNodes * numNodes) - numNodes;
         randomBitCounter = (numNodes * (numNodes-1)/2);
@@ -285,7 +266,6 @@ static void ReceiveAnnouncementForStar (Ptr<Socket> socket)
 
 static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 {
-    //std::cout << "In Receive AnnouncementForRing\n";
     announcementPacketCounter-=1;
     Ptr<Packet> recPacket = socket->Recv();
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -299,17 +279,14 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 	if(protocol=="udp")
     	recPacket->PeekPacketTag(recTag);
 	else {
-		//std::cout << "retrieve packet tag using tcp\n";
+		
 		recPacket->FindFirstMatchingByteTag(recTag);
-		//std::cout << "tag found is " <<istag << "\n";
 	}
     int srcNodeIndex =int(recTag.GetSimpleValue());
-	//std::cout << "source node index is" << srcNodeIndex <<"\n";
     delete buffer;
     socket->Close();
     std::string prgsecretstring;
 	std::ostringstream ss;
-	//std::cout <<"received message is" << recMessage << "\n";
 	map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(recNodeIndex);
 	for(int round = 0; round < MessageLength ; round++) {
 		int result=0;
@@ -339,13 +316,12 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 		InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (recNodeIndex+1, 0), port);
 		Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (srcNodeIndex), tid);
 		retval = sourceNodeSocket->Connect (remoteSocket);
-		//std::cout << "Data to be sent\n";
 		Simulator::Schedule (Seconds(0.02),&SendAnnouncementForRing, sourceNodeSocket,ss.str(), recNodeIndex);
-		//std::cout << "Data sent\n";
+
 	}
     else {
          
-      	//std::cout << "Node" <<recNodeIndex <<"is broadcasting the message " << ss.str() <<  "\n";
+      	std::cout << "Node" <<recNodeIndex <<"is broadcasting the message " << ss.str() <<  "\n";
 		int port = 9806;
 		int retval;
 		for(int index = 0; index < (int)numNodes-1 ; index++) {
@@ -396,9 +372,7 @@ static void GenerateAnnouncementsForFullyConnected()
 				result ^= bit;
 			}
 			ss << result;
-           // std::cout << "current result is" << ss.str() << "\n";
 		}
-		//std::cout << "current result is" << ss.str() << "\n";
 		appUtil->putAnnouncementInGlobalMap(index, ss.str());
 		ss.str("");
 	}
@@ -429,8 +403,6 @@ static void GenerateAnnouncementsForFullyConnected()
                 Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
                 retval = sourceNodeSocket->Connect (remoteSocket);
                 NS_LOG_LOGIC("sourcenode connect="<<retval);
-
-
                 Simulator::Schedule (Seconds(0.01),&SendAnnouncementForFullyConnected, sourceNodeSocket,appUtil->getAnnouncement(index1), index1);
             }
         }
@@ -443,7 +415,6 @@ void GenerateAnnouncementsForStar()
     std::ostringstream ss;
 	for(int index = 0; index < (int)numNodes ; index++) {
 		map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(index);
-		//std::cout << "retreived data from index " << index << "\n";
 		for(int round = 0; round < MessageLength ; round++) {
 	 		int bit = Message.at(round)-48 ;
 			int result = 0;
@@ -451,7 +422,6 @@ void GenerateAnnouncementsForStar()
 			for (map<int,std::string>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
 				//get the adjacent prg string stored in the map
 		    	prgsecretstring =  (std::string)it->second;
-				//std::cout <<"prgsecretstring is " << prgsecretstring << "\n";
                 result ^= (prgsecretstring.at(round) - 48);
 				//break;
 			}
@@ -459,14 +429,11 @@ void GenerateAnnouncementsForStar()
 				result ^= bit;
 			}
 			ss << result;
-           //std::cout << "current result is" << ss.str() << "\n";
 		}		
-		//std::cout << "current result is" << ss.str() << "\n";
 		appUtil->putAnnouncementInGlobalMap(index, ss.str());
 		ss.str("");
 	}
    /* now time to send it to node based on topology */
-   // std::cout << "Sending announcement to numNodes-1 " << (int)numNodes-1 << "\n";
    for (int index1 = 0; index1 < (int)numNodes-1; index1++) {
 		int retval;
 		int port = 9802;
@@ -499,14 +466,12 @@ void GenerateAnnouncementsForRing()
 		for (map<int,std::string>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
 			//get the adjacent prg string stored in the map
 		    prgsecretstring =  (std::string)it->second;
-			//std::cout <<"prgsecretstring is " << prgsecretstring << "\n";
             result ^= (prgsecretstring.at(round) - 48);
 				//break;
 		}
 		result ^= bit;
 		ss << result;
     }
-	//std::cout << "current result is" << ss.str() << "\n";
 	int port = 9805;
     int retval;
     Ptr<Socket> recvNodeSink = NULL;
@@ -541,7 +506,6 @@ void ReceiveCoinFlip (Ptr<Socket> socket)
 
     std::string recMessage = std::string((char*)buffer);
     recMessage = recMessage.substr (0,messageLen-1);
-    //std::cout <<"encrypted message received is" << buffer << "\n";
     MyTag recTag;
 	if(protocol=="udp")
     	recPacket->PeekPacketTag(recTag);
@@ -554,16 +518,9 @@ void ReceiveCoinFlip (Ptr<Socket> socket)
 	CFB_Mode<AES>::Decryption cfbDecryption;
 	cfbDecryption.SetKeyWithIV( key, AESkey.size(), AESiv );
 	StringSource ss( recMessage, true, new StreamTransformationFilter( cfbDecryption,new StringSink( dec ))); 
-	
-   
-	//std::cout << "received coin flip is" << dec << "for index " << recNodeIndex <<" and index "<<srcNodeIndex <<"\n";
-    //put in node's map
-    //appUtil->putSecretBitInGlobalMap(srcNodeIndex,recNodeIndex,dec);
-    //appUtil->putSecretBitInGlobalMap(recNodeIndex,srcNodeIndex,dec);
-    delete buffer;
+	delete buffer;
     randomBitCounter--;
     NS_LOG_INFO("randomBitCounter="<<randomBitCounter);
- 	//std::cout << "random bit counter is"<< randomBitCounter << "\n";
     if(randomBitCounter == 0)
     {
         stage1EndTime.push_back(Simulator::Now());
@@ -647,9 +604,6 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
                  // Calculate a SHA-256 hash over the Diffie-Hellman session key
                 SecByteBlock key(SHA256::DIGESTSIZE);
                 SHA256().CalculateDigest(key, appUtil->getSecretKeyFromGlobalMap(index1,index2), appUtil->getSecretKeyFromGlobalMap(index1,index2).size());
-
-               // std::ostringstream ss;
-                //ss << randomBit;
                 std::string message = prgString;
                 messageLen = (int)strlen(message.c_str()) + 1;
                 CFB_Mode<AES>::Encryption cfbEncryption;
@@ -660,9 +614,7 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
 							  ) // StreamTransformationFilter      
 		        );
 				Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-				 double jitter = uv->GetValue(0.01,5);
-        		//std::cout << "send flip coin random="<<jitter<< std::endl;
-				// std::cout <<"encrypted message sent is" << encrypted << "from nodes "<< index1 <<"and " <<index2<< "\n";
+				double jitter = uv->GetValue(0.01,5);
                 Simulator::Schedule(Seconds(jitter),&SendCoinFlip, encrypted,index1,index2);
             }
         }
@@ -708,7 +660,6 @@ void ReceivePublicKey (Ptr<Socket> socket)
 
     publicKeyCounter--;
     NS_LOG_INFO("Public key counter :"<< publicKeyCounter);
-   // std::cout << "public key counter" << publicKeyCounter <<  "\n";
     //socket->Close()
 	if(publicKeyCounter%250 ==0)
 		std::cout << "public keys need to be received " <<  publicKeyCounter <<"\n";
@@ -717,7 +668,6 @@ void ReceivePublicKey (Ptr<Socket> socket)
         NS_LOG_LOGIC("Debug : calling simulator loop");
         Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
         double jitter = uv->GetValue(0.01,2);
-        //std::cout << "simulatorloop random="<<jitter<< std::endl;
         Simulator::Schedule (Seconds(jitter),&GenerateCoinFlips, tid,c,ipInterfaceContainer);
     }
 

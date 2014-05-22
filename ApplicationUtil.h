@@ -70,12 +70,12 @@ int MessageLength = 0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "101";
+std::string Message = "10101";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 1;  // m
 uint32_t packetSize = 1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 50;  
+int numNodes = 13;  
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 double interval = 1.0; // seconds
@@ -88,11 +88,11 @@ std::string topology="ring";
 
 int aesKeyLength = SHA256::DIGESTSIZE;
 byte AESiv[AES::BLOCKSIZE];
+static std::string msgs[20];
+
 SecByteBlock AESkey(0x00, AES::DEFAULT_KEYLENGTH);
 AutoSeededRandomPool rnd;
-byte iv[AES::BLOCKSIZE];	
-SecByteBlock key(SHA256::DIGESTSIZE);
-static std::string msgs[20];
+byte iv[AES::BLOCKSIZE];
 
 //measurement variables
 
@@ -131,12 +131,13 @@ class ApplicationUtil
 	map<int,SecByteBlock> privateKeyMap;
 	map<int,SecByteBlock> dhSecretKeyMapSub;
 	map<int,map<int,SecByteBlock> > dhSecretKeyMapGlobal;
-	map<int,int> dhSecretBitMapSub;
-	map<int,map<int,int> > dhSecretBitMapGlobal;
+	map<int,std::string> dhSecretBitMapSub;
+	map<int,map<int,std::string> > dhSecretBitMapGlobal;
 	map<Ptr<Node>,int> nodeMap;
-	map<int,int> announcement;
-	map<int, int> receivedAnnouncementSubMap;
-	map<int, map<int, int> > receivedAnnouncement;
+	map<int,std::string> announcement;
+	map<int, std::string> receivedAnnouncementSubMap;
+	map<int, map<int, std::string> > receivedAnnouncement;
+
 public:
 
 	void writeOutputToFile(char* fileName, int option, int numNodes,int length, double latency, double totalTime );
@@ -149,6 +150,7 @@ public:
 	{
 		dhAgreedLength = len;
 	}
+	
 	SecByteBlock getPublicKeyFromMap(int nodeId);
 	void putPublicKeyInMap(int nodeId, SecByteBlock key);
 	SecByteBlock getPrivateKeyFromMap(int nodeId);
@@ -156,18 +158,18 @@ public:
 	SecByteBlock getSecretKeyFromGlobalMap(int nodeId,int destNodeId);
 	void putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key);
 
-	int getSecretBitFromGlobalMap(int nodeId,int destNodeId);
-	void putSecretBitInGlobalMap(int nodeId, int destNodeId, int value);
+	std::string getSecretBitFromGlobalMap(int nodeId,int destNodeId);
+	void putSecretBitInGlobalMap(int nodeId, int destNodeId, std::string value);
 	void eraseSecretBitMapGlobal();
-	map<int,int> getSecretBitSubMap(int nodeId);
+	map<int,std::string> getSecretBitSubMap(int nodeId);
 
 	void putNodeInMap(Ptr<Node> node,int index);
 	int getNodeFromMap(Ptr<Node> node);
-void putAnnouncementInGlobalMap(int nodeId,int value);
-int getAnnouncement(int nodeId);
-void putAnnouncementInReceivedMap(int nodeId, int senderNode, int value);
-map<int, int> getAnnouncementSubMap(int nodeId);
-int getReceivedAnnouncement(int nodeId, int senderNodeId);
+	void putAnnouncementInGlobalMap(int nodeId,std::string value);
+	std::string getAnnouncement(int nodeId);
+	void putAnnouncementInReceivedMap(int nodeId, int senderNode, std::string value);
+	map<int, std::string> getAnnouncementSubMap(int nodeId);
+	std::string getReceivedAnnouncement(int nodeId, int senderNodeId);
 
 	static ApplicationUtil* getInstance();	
 	
@@ -183,7 +185,6 @@ ApplicationUtil* ApplicationUtil::getInstance()
 {
 	if(!instanceFlag)
         {		
-		//publicKeyPairCount = 0;
 		appUtil = new ApplicationUtil();
 		instanceFlag = true;
 	}
@@ -239,22 +240,16 @@ SecByteBlock ApplicationUtil::getSecretKeyFromGlobalMap(int nodeId, int destNode
 
 	map<int,map<int,SecByteBlock> >::iterator p;
 	p = dhSecretKeyMapGlobal.find(nodeId);
-
-	if(p != dhSecretKeyMapGlobal.end())
-	{
+    if(p != dhSecretKeyMapGlobal.end()) {
 		map<int,SecByteBlock>::iterator p1;
 		p1 = p->second.find(destNodeId);
 		if(p1 != dhSecretKeyMapSub.end())
 			return p1->second;
 		else 
-		{
 			return SecByteBlock(0);
-		}
-	}
+    }
 	else 
-		{
-			return SecByteBlock(0);
-		}	
+		return SecByteBlock(0);
 }
 
 void ApplicationUtil::putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByteBlock key)
@@ -264,149 +259,158 @@ void ApplicationUtil::putSecretKeyInGlobalMap(int nodeId, int destNodeId, SecByt
 	p = dhSecretKeyMapGlobal.find(nodeId);
 	if(p != dhSecretKeyMapGlobal.end())
 	{
-		p->second.insert(pair<int,SecByteBlock>(destNodeId,key));
 		
+		map<int,SecByteBlock>::iterator p1;
+		p1 = p->second.find(destNodeId);	
+		if(p1 != p->second.end())
+			p->second[destNodeId] = key;
+		else
+			p->second.insert(pair<int,SecByteBlock>(destNodeId,key));
+
 	}
 	else
-	{	
+	{
+				
 		map<int,SecByteBlock> tempMap;	
 		tempMap.insert(pair<int,SecByteBlock>(destNodeId,key));
 		dhSecretKeyMapGlobal.insert(pair<int,map<int,SecByteBlock> >(nodeId,tempMap));
 	}	
-	
+
 }	
 
-int ApplicationUtil::getSecretBitFromGlobalMap(int nodeId, int destNodeId)
+std::string ApplicationUtil::getSecretBitFromGlobalMap(int nodeId, int destNodeId)
 {
 
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = dhSecretBitMapGlobal.find(nodeId);
 
 	if(p != dhSecretBitMapGlobal.end())
 	{
-		map<int,int>::iterator p1;
+		map<int,std::string>::iterator p1;
 		p1 = p->second.find(destNodeId);
 		if(p1 != dhSecretBitMapSub.end())
 			return p1->second;
 		else 
 		{
-			return -99;
+			
+			return "-99";
 		}
 	}
 	else 
 		{
-			return -99;
+			
+			return "-99";
 		}	
 }
 
-void ApplicationUtil::putSecretBitInGlobalMap(int nodeId, int destNodeId, int value)
+void ApplicationUtil::putSecretBitInGlobalMap(int nodeId, int destNodeId, std::string value)
 {
 
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = dhSecretBitMapGlobal.find(nodeId);
 	if(p != dhSecretBitMapGlobal.end())
 	{
-		map<int,int>::iterator p1;
+		map<int,std::string>::iterator p1;
 		p1 = p->second.find(destNodeId);	
 		if(p1 != p->second.end())
 			p->second[destNodeId] = value;
 		else
-			p->second.insert(pair<int,int>(destNodeId,value));		
+			p->second.insert(pair<int,std::string>(destNodeId,value));		
 	}
 	else
 	{	
-		map<int,int> tempMap;	
-		tempMap.insert(pair<int,int>(destNodeId,value));
-		dhSecretBitMapGlobal.insert(pair<int,map<int,int> >(nodeId,tempMap));
-	}	
-	
+		map<int,std::string> tempMap;	
+		tempMap.insert(pair<int,std::string>(destNodeId,value));
+		dhSecretBitMapGlobal.insert(pair<int,map<int,std::string> >(nodeId,tempMap));
+	}		
 }					
 
-map<int,int> ApplicationUtil::getSecretBitSubMap(int nodeId)
+map<int,std::string> ApplicationUtil::getSecretBitSubMap(int nodeId)
 {
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = dhSecretBitMapGlobal.find(nodeId);
-		
+
 	return p->second;
 }
 
 void ApplicationUtil::eraseSecretBitMapGlobal()
 {
-	 map<int,map<int,int> >::iterator p;
+	 map<int,map<int,std::string> >::iterator p;
 	 dhSecretBitMapGlobal.erase ( p, dhSecretBitMapGlobal.end() );
 }
 
-//swati
-void ApplicationUtil::putAnnouncementInGlobalMap(int nodeId, int value)
+void ApplicationUtil::putAnnouncementInGlobalMap(int nodeId, std::string value)
 {
-	map<int,int>::iterator p;
+	map<int,std::string>::iterator p;
 	p = announcement.find(nodeId);
 	if(p != announcement.end())
 		announcement[nodeId] = value;
 	else
-	announcement.insert(pair<int,int>(nodeId,value));
+	announcement.insert(pair<int,std::string>(nodeId,value));
 }					
 
-int ApplicationUtil::getAnnouncement(int nodeId)
+std::string ApplicationUtil::getAnnouncement(int nodeId)
 {
-	map<int,int>::iterator p;
+	map<int,std::string>::iterator p;
 	p = announcement.find(nodeId);
 	return p->second;
 }
-void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, int value)
+void ApplicationUtil::putAnnouncementInReceivedMap(int nodeId, int senderNode, std::string value)
 {
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = receivedAnnouncement.find(nodeId);
 	if(p != receivedAnnouncement.end())
 	{
-		map<int,int>::iterator p1;
+		map<int,std::string>::iterator p1;
 		p1 = p->second.find(senderNode);	
 		if(p1 != p->second.end())
 			p->second[senderNode] = value;
 		else
-		p->second.insert(pair<int,int>(senderNode,value));
+		p->second.insert(pair<int,std::string>(senderNode,value));
 
-		
+	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
+
 	}
 	else
 	{	
-		map<int,int> tempMap;	
-		tempMap.insert(pair<int,int>(senderNode,value));
-		receivedAnnouncement.insert(pair<int,map<int,int> >(nodeId,tempMap));
+		map<int,std::string> tempMap;	
+		tempMap.insert(pair<int,std::string>(senderNode,value));
+		receivedAnnouncement.insert(pair<int,map<int,std::string> >(nodeId,tempMap));
+	//	std::cout<<"Inserting "<<nodeId<<","<<senderNode<<","<<value<<"\n";
 	}
 }
-int ApplicationUtil::getReceivedAnnouncement(int nodeId, int senderNodeId)
+std::string ApplicationUtil::getReceivedAnnouncement(int nodeId, int senderNodeId)
 {
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = receivedAnnouncement.find(nodeId);
 
 	if(p != receivedAnnouncement.end())
 	{
-		map<int,int>::iterator p1;
+		map<int,std::string>::iterator p1;
 		p1 = p->second.find(senderNodeId);
 		if(p1 != receivedAnnouncementSubMap.end())
 			return p1->second;
 		else 
 		{
-			return -99;
+			
+			return "-99";
 		}
 	}
 	else 
 		{
-			return -99;
+			
+			return "-99";
 		}	
 }
 
 
-map<int,int> ApplicationUtil::getAnnouncementSubMap(int nodeId)
+map<int,std::string> ApplicationUtil::getAnnouncementSubMap(int nodeId)
 {
-	map<int,map<int,int> >::iterator p;
+	map<int,map<int,std::string> >::iterator p;
 	p = receivedAnnouncement.find(nodeId);
-	
+
 	return p->second;
 }
-
-
 //write to csv file
 
 void ApplicationUtil::writeOutputToFile(char* fileName, int option, int numNodes,int length, double latency, double totalTime ) {

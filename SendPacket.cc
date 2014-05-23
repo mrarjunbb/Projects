@@ -829,10 +829,10 @@ void DCNET( int numRounds)
                 NS_LOG_LOGIC("Debug : Inside dcnet  1");
                 Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
 				double jitter;
-				if(numNodes > 50)
+				if(protocol=="tcp")
                 	jitter = uv->GetValue(10,40);
 				else
-					jitter = uv->GetValue(5,20);
+					jitter = uv->GetValue(5,30);
 				NS_LOG_LOGIC("sendpublickey random="<<jitter);
                 Simulator::Schedule (Seconds(jitter),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
             }

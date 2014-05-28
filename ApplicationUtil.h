@@ -67,25 +67,29 @@ int option;
 
 int rounds = 0;
 int MessageLength = 0;
+double time_wait_dcnet=15.0;
 double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
-std::string Message = "10101";
+int numberofmessages=3;
+std::string messages[] = {"1010", "101", "10"};
+std::string Message = "";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 1;  // m
-uint32_t packetSize =2048; // bytes
+uint32_t packetSize =1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 20;  
+int numNodes = 85;  
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
+int dcnet_protocol_start=0;
 double interval = 1.0; // seconds
 double keyExchangeInterval = 5.0; // seconds
 bool verbose = false;
 bool tracing = false;
 int messageLen=0;	
-std::string protocol="tcp";
+std::string protocol="udp";
 std::string topology="ring";
-
+int publickeyset=0;
 int aesKeyLength = SHA256::DIGESTSIZE;
 byte AESiv[AES::BLOCKSIZE];
 static std::string msgs[20];
@@ -213,6 +217,7 @@ SecByteBlock ApplicationUtil::getPublicKeyFromMap(int nodeId)
 		return p->second;
 	else 
 		return SecByteBlock(0);
+		
 }
 
 void ApplicationUtil::putPublicKeyInMap(int nodeId, SecByteBlock key)
@@ -328,9 +333,14 @@ void ApplicationUtil::putSecretBitInGlobalMap(int nodeId, int destNodeId, std::s
 map<int,std::string> ApplicationUtil::getSecretBitSubMap(int nodeId)
 {
 	map<int,map<int,std::string> >::iterator p;
+	map<int,std::string> temp;
 	p = dhSecretBitMapGlobal.find(nodeId);
-
-	return p->second;
+    if(p!= dhSecretBitMapGlobal.end())
+		return p->second;
+    else {
+		
+		return temp;
+	}
 }
 
 void ApplicationUtil::eraseSecretBitMapGlobal()

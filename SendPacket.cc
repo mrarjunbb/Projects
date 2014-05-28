@@ -1,4 +1,4 @@
-#include "ApplicationUtil.h"
+#include "ApplicationUtilTest.h"
 #include "ns3/flow-monitor-module.h" 
 #include "ns3/netanim-module.h"
 
@@ -6,24 +6,12 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhocGrid");
 map<int,Ptr<Socket> > sendAnnouncement_ReceiverSocketMap;
 map<int,Ptr<Socket> > sendMessage_ReceiverSocketMap;
 map<int,Ptr<Socket> > sendPublicKey_ReceiverSocketMap;
+map<int,Ptr<Socket> > broadcast_SocketMap;
 static void ReceiveAnnouncementForRing (Ptr<Socket> socket);
 static void ReceiveAnnouncementForStar(Ptr<Socket> socket);
 static void ReceiveAnnouncementForFullyConnected(Ptr<Socket> socket);
-	
-
-class PacketHolder {
-public:
-    PacketHolder(Ptr<Packet> _packet) {
-        this->packet = _packet;
-    }
-    void SendCallback(Ptr<Socket> socket, uint32_t val) {
-        NS_LOG_LOGIC("send callback");
-        socket->Send(this->packet);
-        socket->Close();
-    }
-    Ptr<Packet> packet;
-
-};
+int broadcast_port=5204;	
+std::vector<int> DCNET_interested_nodes;
 
 
 void DCNET(int numRounds);
@@ -42,6 +30,7 @@ int randomBitGeneratorWithProb(double p)
 	int rand = uv->GetInteger(0,1);
     return rand;
 }
+
 std::string PseudoRandomGenerator(unsigned int SEEDSIZE)
 {
 	std::string result;
@@ -87,7 +76,7 @@ static void SendAnnouncementForStar (Ptr<Socket> sourceNodeSocket, std::string r
 static void SendAnnouncementForRing (Ptr<Socket> sourceNodeSocket, std::string result, int index)
 {
     
-       std::string message = result;
+    std::string message = result;
     Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     MyTag sendTag;
 	sendTag.SetSimpleValue(index);
@@ -96,14 +85,25 @@ static void SendAnnouncementForRing (Ptr<Socket> sourceNodeSocket, std::string r
     else
 		sendPacket->AddByteTag(sendTag);
     int retval = sourceNodeSocket->Send(sendPacket);
+  //  std::cout << "retval is " << retval << "\n";
     NS_LOG_LOGIC("sourcenode send="<<retval);
+}
+
+void HandlePeerClose (Ptr<Socket> socket)
+{
+  std::cout << "Handle close" << "\n";
+}
+ 
+void HandlePeerError (Ptr<Socket> socket)
+{
+ std::cout << "Handle error" << "\n";
 }
 
 //sendbroadcast announcement
 
-static void SendBroadcastAnnouncement (Ptr<Socket> sourceNodeSocket, std::string result, int index)
+void SendBroadcastAnnouncement (Ptr<Socket> sourceNodeSocket, std::string result, int index)
 {
-   
+   	//std::cout << "Sending BroadCast announcement\n";
     std::string message = result;
     Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     MyTag sendTag;
@@ -113,26 +113,106 @@ static void SendBroadcastAnnouncement (Ptr<Socket> sourceNodeSocket, std::string
 	else
 		sendPacket->AddByteTag(sendTag);
     int retval = sourceNodeSocket->Send(sendPacket);
-    NS_LOG_LOGIC("sourcenode send="<<retval);
-	sourceNodeSocket->Close();
+	NS_LOG_LOGIC("sourcenode send="<<retval);
+	//sourceNodeSocket->Close();
 }
 
-static void ReceiveBroadcastAnnouncement(Ptr<Socket> socket)
+void ReceiveBroadcastAnnouncement(Ptr<Socket> socket)
 {
-	Ptr<Packet> recPacket = socket->Recv();
-    uint8_t *buffer = new uint8_t[recPacket->GetSize()];
+	Address from;
+  	Ptr<Packet> recPacket = socket->RecvFrom(from);
+	uint8_t *buffer = new uint8_t[recPacket->GetSize()];
     recPacket->CopyData(buffer,recPacket->GetSize());
     Ptr<Node> recvnode = socket->GetNode();
-    if(recvnode==NULL)
-		std::cout << "socket node is null\n";
+  	int recNodeIndex = ApplicationUtil::getInstance()->getNodeFromMap(recvnode);
+    MyTag recTag;
+    //if(recvnode==NULL)
+		//std::cout << "socket node is null\n";
+    if(protocol=="udp")
+    	recPacket->PeekPacketTag(recTag);
+	else {
+		
+		recPacket->FindFirstMatchingByteTag(recTag);
+    }
+    int messageID =int(recTag.GetSimpleValue());
     std::string recMessage = std::string((char*)buffer);
     recMessage = recMessage.substr (0,messageLen-1);
-    delete buffer;
-	socket->Close();
+	delete buffer;
+	if(messageID==1) {
+		//initial broad cast announcement
+       	recPacket->RemoveAllPacketTags ();
+  		recPacket->RemoveAllByteTags ();
+  		MyTag sendTag;
+  		sendTag.SetSimpleValue(recNodeIndex);
+	    if(protocol=="udp")
+    		recPacket->AddPacketTag(sendTag);
+		else
+			recPacket->AddByteTag(sendTag);
+		socket->SendTo (recPacket, 0, from);
+	}
 }
+void CheckDCNET(Ptr<Socket> socket)
+{
+	std::cout << "numNodes is " << (int)numNodes << "\n";
+	DCNET_interested_nodes.push_back((int)numNodes-1);
+	std::cout << "number of nodes responded to participate is "<< DCNET_interested_nodes.size() <<"\n";
+	//numNodes=DCNET_interested_nodes.size();
+   	if(topology=="fullconnected")
+		announcementPacketCounter = (DCNET_interested_nodes.size() * DCNET_interested_nodes.size()) - DCNET_interested_nodes.size();
+   	else
+		announcementPacketCounter=DCNET_interested_nodes.size()-1;
+    publicKeyCounter = (DCNET_interested_nodes.size() * DCNET_interested_nodes.size()) - DCNET_interested_nodes.size();
+    randomBitCounter = (DCNET_interested_nodes.size() * (DCNET_interested_nodes.size()-1)/2);
+    //std::cout << "publicKeyCounter is" <<publicKeyCounter <<"\n";
+	//std::cout << "announcementPacketCounter is" << announcementPacketCounter <<"\n";
+    //std::cout << "randomBitCounter is" << randomBitCounter <<"\n";
+	Message=messages[rounds];
+	std::cout << "Message needs to be sent is" << Message << "\n";
+	MessageLength= (int)strlen(Message.c_str()) ;
+	std::sort (DCNET_interested_nodes.begin(), DCNET_interested_nodes.end());  
+	 if(DCNET_interested_nodes.size() <3) {
+		std::cout << "There are not enough nodes interested to participate in DCNET.So exiting simulation\n";
+		Simulator::Stop(Seconds(1.0));
+	}
+    else  {
+			 if(dcnet_protocol_start==0) dcnet_protocol_start=1;
+          
+           	std::ostringstream ss;
+           	ss << "Starting DCNET protocol among the nodes ";
+           	for (std::vector<int>::iterator it = DCNET_interested_nodes.begin() ; it != DCNET_interested_nodes.end(); ++it){
+				//std::cout << "node in vector is " <<  *it ;
+				ss << *it <<" ";
+		   	}
+		   	std::cout << ss.str() <<"\n";
+           	Simulator::Schedule (Seconds(3.0),&SendBroadcastAnnouncement, socket,ss.str(),2);
+		   	Simulator::Schedule (Seconds(5.0),&DCNET, 0);
+   }
+}
+void ReceiveDCNETInterest (Ptr<Socket> socket)
+{
+	Ptr<Packet> recPacket = socket->Recv();
+	MyTag recTag;
+    if(protocol=="udp")
+    	recPacket->PeekPacketTag(recTag);
+	else {
+		recPacket->FindFirstMatchingByteTag(recTag);
+    }
+    int nodeId =int(recTag.GetSimpleValue());
+	if(dcnet_protocol_start==0) {
+		//std::cout << "Received interest from node" << nodeId << "to participate in dcnet\n" ;
+    	DCNET_interested_nodes.push_back(nodeId);
+	}
+  
+}
+
+/*static void ReceiveDCNETNodeInterestCallback(Ptr<Socket> socket,const Address& address) {
+    NS_LOG_LOGIC("receiveannouncementcallback");
+    socket->SetRecvCallback(MakeCallback(&ReceiveDCNETInterest));
+}*/
 
 static void ReceiveBroadcastAnnouncementCallback(Ptr<Socket> socket,const Address& address) {
     NS_LOG_LOGIC("receiveannouncementcallback");
+	std::cout << "broad cast announcement set\n";
     socket->SetRecvCallback(MakeCallback(&ReceiveBroadcastAnnouncement));
 }
 
@@ -194,6 +274,9 @@ static void ReceiveAnnouncementForFullyConnected (Ptr<Socket> socket)
         randomBitCounter = (numNodes * (numNodes-1)/2);
         stage2EndTime.push_back(Simulator::Now());
         rounds = rounds +1;
+		Message=messages[rounds];
+		std::cout << "Message needs to be sent is" << Message << "\n";
+		MessageLength= (int)strlen(Message.c_str()) ;
         Simulator::ScheduleNow (&DCNET,MessageLength);
     }
 }
@@ -254,18 +337,22 @@ static void ReceiveAnnouncementForStar (Ptr<Socket> socket)
 		sourceNodeSocket->SetAllowBroadcast (true);
         retval = sourceNodeSocket->Connect (remoteSocket);
 		NS_LOG_LOGIC("sourcenode connect="<<retval);
+        std::cout <<"retval is" <<retval <<"\n";
         Simulator::Schedule (Seconds(0.03),&SendBroadcastAnnouncement, sourceNodeSocket,sharedMessage.str(),(int) numNodes-1); 
         announcementPacketCounter = numNodes-1;
         publicKeyCounter = (numNodes * numNodes) - numNodes;
         randomBitCounter = (numNodes * (numNodes-1)/2);
         stage2EndTime.push_back(Simulator::Now());
         rounds = rounds +1;
-        Simulator::ScheduleNow (&DCNET,MessageLength);
+		Message=messages[rounds];
+		MessageLength= (int)strlen(Message.c_str()) ;
+        //Simulator::ScheduleNow (&DCNET,MessageLength);
     }
 }
 
 static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 {
+	//std::cout << "new packet\n";
     announcementPacketCounter-=1;
     Ptr<Packet> recPacket = socket->Recv();
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
@@ -275,6 +362,7 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
     recPacket->CopyData(buffer,recPacket->GetSize());
 	std::string recMessage = std::string((char*)buffer);
     recMessage = recMessage.substr (0,messageLen-1);
+    //std::cout << "recieved message is " << recMessage << "\n";
 	MyTag recTag;
 	if(protocol=="udp")
     	recPacket->PeekPacketTag(recTag);
@@ -283,27 +371,30 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 		recPacket->FindFirstMatchingByteTag(recTag);
 	}
     int srcNodeIndex =int(recTag.GetSimpleValue());
+    //std::cout << "src node is " << srcNodeIndex << "receive node is " <<  recNodeIndex << "\n";
     delete buffer;
     socket->Close();
     std::string prgsecretstring;
 	std::ostringstream ss;
 	map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(recNodeIndex);
 	for(int round = 0; round < MessageLength ; round++) {
-		int result=0;
+		int result =0^(recMessage.at(round) - 48) ;
 		for (map<int,std::string>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
 			//get the adjacent prg string stored in the map
 			prgsecretstring =  (std::string)it->second;
-			//std::cout << "prg string is" << prgsecretstring << "\n";
-			result ^= ((prgsecretstring.at(round) - 48) ^(recMessage.at(round) - 48));
+			//std::cout << "prg string  for node " << recNodeIndex << "is" << prgsecretstring << "\n";
+			result ^= prgsecretstring.at(round) - 48 ;
 	    }
 		ss << result;
+		//std::cout << "now node " << recNodeIndex <<" is sending message "<< result << "\n";
 	}
 	
    	int retval;
-    if(recNodeIndex <(int)numNodes-1) {
+    if(recNodeIndex < DCNET_interested_nodes[DCNET_interested_nodes.size()-1]) {
+		//std::cout << "creating socket on node " <<DCNET_interested_nodes[srcNodeIndex+1] << "\n";
 		int port = 9805;
 		Ptr<Socket> recvNodeSink = NULL;
-		recvNodeSink = Socket::CreateSocket (c.Get (recNodeIndex+1), tid);
+		recvNodeSink = Socket::CreateSocket (c.Get (DCNET_interested_nodes[srcNodeIndex+1]), tid);
 		
 		InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
 		retval = recvNodeSink->Bind (localAddress);
@@ -313,11 +404,12 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 	    recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
                                                     MakeCallback(&ReceiveAnnouncementForRingCallback));
 		recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncementForRing));
-		InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (recNodeIndex+1, 0), port);
+		InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress(DCNET_interested_nodes[srcNodeIndex+1],0), port);
 		Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (srcNodeIndex), tid);
 		retval = sourceNodeSocket->Connect (remoteSocket);
-		Simulator::Schedule (Seconds(0.02),&SendAnnouncementForRing, sourceNodeSocket,ss.str(), recNodeIndex);
-
+		//std::cout << "retval after connecting to remote socket is " << retval << "\n";
+		Simulator::Schedule (Seconds(0.05),&SendAnnouncementForRing, sourceNodeSocket,ss.str(), srcNodeIndex+1);
+        //std::cout << " scheduled another anouncement for node"   <<DCNET_interested_nodes[srcNodeIndex+1] << "\n";
 	}
     else {
          
@@ -325,6 +417,9 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 		int port = 9806;
 		int retval;
 		for(int index = 0; index < (int)numNodes-1 ; index++) {
+			bool isPresent=std::find(DCNET_interested_nodes.begin(),DCNET_interested_nodes.end(),index)==DCNET_interested_nodes.end();
+			//std::cout << " ispresent for node" << ind << "is" << isPresent << "\n";
+			if(isPresent) continue;
         	Ptr<Socket> recvNodeSink  = Socket::CreateSocket (c.Get (index), tid);
         	InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
         	//NS_LOG_LOGIC("localaddress="<<localAddress);
@@ -340,15 +435,20 @@ static void ReceiveAnnouncementForRing (Ptr<Socket> socket)
 		sourceNodeSocket->SetAllowBroadcast (true);
         retval = sourceNodeSocket->Connect (remoteSocket);
 		NS_LOG_LOGIC("sourcenode connect="<<retval);
+		//std::cout <<"retval from ring is" <<retval <<"\n";
         Simulator::Schedule (Seconds(0.05),&SendBroadcastAnnouncement, sourceNodeSocket,ss.str(),(int) numNodes-1); 
-
-        announcementPacketCounter =  numNodes-1;
-        publicKeyCounter = (numNodes * numNodes) - numNodes;
-        randomBitCounter = (numNodes * (numNodes-1)/2);
+		if(topology=="fullconnected")
+			announcementPacketCounter = (DCNET_interested_nodes.size() * DCNET_interested_nodes.size()) - DCNET_interested_nodes.size();
+   		else
+			announcementPacketCounter=DCNET_interested_nodes.size()-1;
+    	publicKeyCounter = (DCNET_interested_nodes.size() * DCNET_interested_nodes.size()) - DCNET_interested_nodes.size();
+    	randomBitCounter = (DCNET_interested_nodes.size() * (DCNET_interested_nodes.size()-1)/2);
         stage2EndTime.push_back(Simulator::Now());
         rounds = rounds +1;
-        Simulator::ScheduleNow (&DCNET,MessageLength);
-        
+       	Message=messages[rounds];
+		std::cout << "Message needs to be sent is" << Message << "\n";
+		MessageLength= (int)strlen(Message.c_str()) ;
+        Simulator::ScheduleNow (&DCNET,rounds);
     }
 }
 static void GenerateAnnouncementsForFullyConnected()
@@ -458,7 +558,10 @@ void GenerateAnnouncementsForRing()
 {
     ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 	std::ostringstream ss;
-	map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(0);
+	int startnode=DCNET_interested_nodes[0];
+	int neighbornode=DCNET_interested_nodes[1];
+    //std::cout << "start node is " << startnode << "and neighbor node is" << neighbornode <<"\n";
+	map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(DCNET_interested_nodes[0]);
 	for(int round = 0; round < MessageLength ; round++) {
 		int bit = Message.at(round)-48 ;
 		int result = 0;
@@ -466,16 +569,18 @@ void GenerateAnnouncementsForRing()
 		for (map<int,std::string>::iterator it=NodeSecretBitMap.begin(); it!=NodeSecretBitMap.end(); ++it) {
 			//get the adjacent prg string stored in the map
 		    prgsecretstring =  (std::string)it->second;
+			//std::cout << "prgstring for node 0 is " << prgsecretstring << "\n";
             result ^= (prgsecretstring.at(round) - 48);
 				//break;
 		}
 		result ^= bit;
+		//std::cout << "message to be send by node 0 is" << result << "\n";
 		ss << result;
     }
 	int port = 9805;
     int retval;
     Ptr<Socket> recvNodeSink = NULL;
-    recvNodeSink = Socket::CreateSocket (c.Get (1), tid);
+    recvNodeSink = Socket::CreateSocket (c.Get (neighbornode), tid);
     InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),port);
     NS_LOG_LOGIC("localaddress="<<localAddress);
     retval = recvNodeSink->Bind (localAddress);
@@ -484,11 +589,11 @@ void GenerateAnnouncementsForRing()
     recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveAnnouncementForRing));
     recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
                                                     MakeCallback(&ReceiveAnnouncementForRingCallback));
-    InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (1, 0), port);
-    Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (0), tid);
+    InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (neighbornode, 0), port);
+    Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (startnode), tid);
     retval = sourceNodeSocket->Connect (remoteSocket);
     NS_LOG_LOGIC("sourcenode connect="<<retval);
-    Simulator::Schedule (Seconds(0.01),&SendAnnouncementForRing, sourceNodeSocket,ss.str(), 0);
+    Simulator::Schedule (Seconds(0.01),&SendAnnouncementForRing, sourceNodeSocket,ss.str(), 1);
 }
 
 void ReceiveCoinFlip (Ptr<Socket> socket)
@@ -521,16 +626,17 @@ void ReceiveCoinFlip (Ptr<Socket> socket)
 	delete buffer;
     randomBitCounter--;
     NS_LOG_INFO("randomBitCounter="<<randomBitCounter);
+    //std::cout << "randomBitCounter="<<randomBitCounter << "\n";
     if(randomBitCounter == 0)
     {
         stage1EndTime.push_back(Simulator::Now());
         stage2StartTime.push_back(Simulator::Now());
 		if(topology=="ring")
-        	Simulator::Schedule (Seconds(0.01),&GenerateAnnouncementsForRing);
+        	Simulator::Schedule (Seconds(0.05),&GenerateAnnouncementsForRing);
 		else if(topology=="star") 
-			Simulator::Schedule (Seconds(0.01),&GenerateAnnouncementsForStar);
+			Simulator::Schedule (Seconds(0.05),&GenerateAnnouncementsForStar);
 		else if(topology=="fullconnected") 
-			 Simulator::Schedule (Seconds(0.01),&GenerateAnnouncementsForFullyConnected);
+			 Simulator::Schedule (Seconds(0.05),&GenerateAnnouncementsForFullyConnected);
        else {
 			std::cout << "un supported topology\n";
 		}
@@ -592,13 +698,20 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
     //sharing the random bit using dh secret key
     for (int index1 = 0; index1 < (int)numNodes; index1++)
     {
-
+		bool isPresent=std::find(DCNET_interested_nodes.begin(),DCNET_interested_nodes.end(),index1)==DCNET_interested_nodes.end();
+		//std::cout << "GenerateCoinFlips: ispresent for node" << index1 << "is" << isPresent << "\n";
+		if(isPresent) continue;
+				
 		for (int index2 = 0; index2 < (int)numNodes; index2++)
         {
+			bool isPresent=std::find(DCNET_interested_nodes.begin(),DCNET_interested_nodes.end(),index2)==DCNET_interested_nodes.end();
+			//std::cout << "GenerateCoinFlips: ispresent for node" << ind << "is" << isPresent << "\n";
+			if(isPresent) continue;
             if(index1 < index2)
             {
                 std::string prgString = PseudoRandomGenerator(MessageLength);
                 NS_LOG_LOGIC("Random bit : "<<prgString<<" "<<index1<<" "<<index2);
+				//std::cout << "putting prg string for nodes " << index1 << index2 << "\n";
                 appUtil->putSecretBitInGlobalMap(index1,index2,prgString);
                 appUtil->putSecretBitInGlobalMap(index2,index1,prgString);
                  // Calculate a SHA-256 hash over the Diffie-Hellman session key
@@ -614,7 +727,7 @@ static void GenerateCoinFlips(TypeId tid, NodeContainer c, Ipv4InterfaceContaine
 							  ) // StreamTransformationFilter      
 		        );
 				Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-				double jitter = uv->GetValue(0.01,5);
+				double jitter = uv->GetValue(0.01,10);
                 Simulator::Schedule(Seconds(jitter),&SendCoinFlip, encrypted,index1,index2);
             }
         }
@@ -661,13 +774,14 @@ void ReceivePublicKey (Ptr<Socket> socket)
     publicKeyCounter--;
     NS_LOG_INFO("Public key counter :"<< publicKeyCounter);
     //socket->Close()
-	if(publicKeyCounter%250 ==0)
-		std::cout << "public keys need to be received " <<  publicKeyCounter <<"\n";
+	//if(publicKeyCounter%250 ==0)
+		//std::cout << "public keys need to be received " <<  publicKeyCounter <<"\n";
     if(publicKeyCounter == 0)
     {
+		
         NS_LOG_LOGIC("Debug : calling simulator loop");
         Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-        double jitter = uv->GetValue(0.01,2);
+        double jitter = uv->GetValue(0.01,3);
         Simulator::Schedule (Seconds(jitter),&GenerateCoinFlips, tid,c,ipInterfaceContainer);
     }
 
@@ -697,10 +811,11 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
     int retval = 0;
     bool receiver_exists = sendPublicKey_ReceiverSocketMap.find(index2) != sendPublicKey_ReceiverSocketMap.end();
     if(receiver_exists) {
+       // std::cout << "socket  exists on node" << index2 << "\n";
         recvNodeSink = sendPublicKey_ReceiverSocketMap[index2];
     }
     else {
-
+        //std::cout << "creating socket on node" << index2 << "\n";
         recvNodeSink = Socket::CreateSocket (c.Get (index2), tid);
         InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),randomport);
         NS_LOG_LOGIC("localaddress="<<localAddress);
@@ -710,13 +825,15 @@ static void SendPublicKey (SecByteBlock pub, int index1, int index2)
         recvNodeSink->SetRecvCallback (MakeCallback (&ReceivePublicKey));
         recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
                                         MakeCallback(&ReceivePublicKeyCallback));
-
         sendPublicKey_ReceiverSocketMap[index2] = recvNodeSink;
     }
-
     InetSocketAddress remoteSocket = InetSocketAddress (ipInterfaceContainer.GetAddress (index2, 0), randomport);
+	//std::cout << "creating sending socket on node" << index2 << "\n";
     Ptr<Socket> sourceNodeSocket = Socket::CreateSocket (c.Get (index1), tid);
     retval = sourceNodeSocket->Connect (remoteSocket);
+	sourceNodeSocket->SetRecvCallback (MakeCallback (&ReceivePublicKey));
+    sourceNodeSocket->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
+                                        MakeCallback(&ReceivePublicKeyCallback));
     NS_LOG_LOGIC("sourcenode connect="<<retval);
     retval = sourceNodeSocket->Send(sendPacket);
     NS_LOG_LOGIC("sourcenode send="<<retval);
@@ -802,43 +919,89 @@ void DisplayMeasurements()
 void DCNET( int numRounds)
 {
     NS_LOG_INFO("Debug : Inside dcnet rounds="<<numRounds<<"messagelen="<<MessageLength);
-
+   
     //finished
-    if(numRounds >= MessageLength) {
+    if(numRounds >= numberofmessages) {
 		Simulator::Stop (Seconds(3.0));
         DisplayMeasurements();
 		return;
     }
-
+    else {
     //Symmetric key generation
-    for(int ind =0 ; ind < (int)numNodes; ind++)
-    {
-        generateKeys(ind);
-    }
-    std::cout << "symmetric key generation completed\n";
-    ApplicationUtil *appUtil = ApplicationUtil::getInstance();
+		if(publickeyset==0) {
+			for(int ind =0 ; ind < (int)numNodes; ind++)
+			{ 
+				bool isPresent=std::find(DCNET_interested_nodes.begin(),DCNET_interested_nodes.end(),ind)==DCNET_interested_nodes.end();
+				//std::cout << " ispresent for node" << ind << "is" << isPresent << "\n";
+				if(isPresent) {
+					//std::cout << "node " << ind << " is not interested in participating DCNET\n";
+					continue;
+				}
+				//std::cout << "Now Generating key generation for node " << ind <<"\n";
+				generateKeys(ind);
+				publickeyset=1;
+			}
+			std::cout << "symmetric key generation completed\n";
+		}
+		ApplicationUtil *appUtil = ApplicationUtil::getInstance();
 
-    //send the public key to everyone
-    for (int index1 = 0; index1 < (int)numNodes; index1++)
-    {
+		//send the public key to everyone
+		for (int index1 = 0; index1 < (int)numNodes; index1++)
+		{
+			bool isPresent=std::find(DCNET_interested_nodes.begin(), DCNET_interested_nodes.end(), index1)==DCNET_interested_nodes.end();
+			//std::cout << " ispresent for node" << index1 << "is" << isPresent << "\n";
+			if(isPresent) {
+				if(publickeyset==0)
+					std::cout << "node " <<index1 << " is not interested in participating DCNET\n";
+				continue;
+			}
 
-        for (int index2 = 0; index2 < (int)numNodes; index2++)
-        {
-            if(index1 != index2)
-            {
-                NS_LOG_LOGIC("Debug : Inside dcnet  1");
-                Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-				double jitter;
-				if(protocol=="tcp")
-                	jitter = uv->GetValue(10,40);
-				else
-					jitter = uv->GetValue(5,30);
-				NS_LOG_LOGIC("sendpublickey random="<<jitter);
-                Simulator::Schedule (Seconds(jitter),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
-            }
-        }
-    }
-
+		    for (int index2 = 0; index2 < (int)numNodes; index2++)
+		    {
+				//std::cout << "NodeSecretMap\n";
+				map<int,std::string> NodeSecretBitMap = appUtil->getSecretBitSubMap(index2);
+				
+				if(!NodeSecretBitMap.empty() )
+                {
+				    
+					map<int,std::string> ::iterator it=NodeSecretBitMap.find(index1);
+					if(it!=NodeSecretBitMap.end()) {
+						//std::cout << "Key present in cache for nodes" << index2 <<" and "<< index1 << "\n";
+						publicKeyCounter--;
+						if(publicKeyCounter == 0)
+    					{
+		                    std::cout << "all public keys found in cache\n";
+       						Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+        					double jitter = uv->GetValue(0.01,2);
+        					Simulator::Schedule (Seconds(jitter),&GenerateCoinFlips, tid,c,ipInterfaceContainer);
+   						}
+						else continue;
+					}
+					
+				}
+                bool isPresent=std::find(DCNET_interested_nodes.begin(),DCNET_interested_nodes.end(),index2)==
+											DCNET_interested_nodes.end();
+			   //std::cout << " ispresent for node" << index2 << "is" << isPresent << "\n";
+			    if(isPresent) {
+					//std::cout << "node " <<ind << " is not interested in participating DCNET\n";
+					continue;
+			  	}
+		        if(index1 != index2)
+		        {
+		            Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+					double jitter;
+					if(protocol=="tcp")
+		            	jitter = uv->GetValue(10,40);
+					else
+						jitter = uv->GetValue(5,30);
+         
+					NS_LOG_LOGIC("sendpublickey random="<<jitter);
+					//std::cout << "Now exchanging public keys between nodes " <<index1 << " and " <<index2 <<"\n";
+		            Simulator::Schedule (Seconds(jitter),&SendPublicKey, appUtil->getPublicKeyFromMap(index1),index1,index2);
+		        }
+		    }
+		}
+	}
 
 }
 
@@ -928,19 +1091,20 @@ int main (int argc, char *argv[])
     mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                     "MinX", DoubleValue (-100.0),
                                      "MinY", DoubleValue (-100.0),
-                                     "DeltaX", DoubleValue (5.0),
+                                     "DeltaX", DoubleValue (4.0),
                                      "DeltaY", DoubleValue (20.0),
                                      "GridWidth", UintegerValue (20),
                                      "LayoutType", StringValue ("RowFirst"));
-    mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    mobility.SetMobilityModel ("ns3::RandomDirection2dMobilityModel");
+	//mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
 
-     OlsrHelper olsr;
+    // OlsrHelper olsr;
     Ipv4StaticRoutingHelper staticRouting;
 
     Ipv4ListRoutingHelper list;
-    //list.Add (staticRouting, 0);
-    list.Add(olsr,0);
+    list.Add (staticRouting, 0);
+    //list.Add(olsr,0);
 
 
     InternetStackHelper internet;
@@ -969,9 +1133,44 @@ int main (int argc, char *argv[])
     stage1StartTime.push_back(Simulator::Now());
     totalTimeStart = Simulator::Now();
     RngSeedManager::SetSeed (30);
-    Simulator::ScheduleNow (&DCNET, 0);
-
-
+	int retval;
+    std::string init_message="Hello";
+    // now find how many nodes are interested in joining dcnet
+    for(int index = 0; index < (int)numNodes-1 ; index++) {
+    	Ptr<Socket> recvNodeSink  = Socket::CreateSocket (c.Get (index), tid);
+        InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),broadcast_port);
+        NS_LOG_LOGIC("localaddress="<<localAddress);
+        retval = recvNodeSink->Bind (localAddress);
+        NS_LOG_LOGIC("recvnode bind="<<retval);
+        recvNodeSink->Listen();
+        recvNodeSink->SetRecvCallback (MakeCallback (&ReceiveBroadcastAnnouncement));
+		recvNodeSink->SetAcceptCallback(MakeNullCallback<bool, Ptr< Socket >, const Address &> (),
+                                                    MakeCallback(&ReceiveBroadcastAnnouncementCallback));
+	     recvNodeSink->SetCloseCallbacks (MakeCallback (&HandlePeerClose),MakeCallback (&HandlePeerError));
+		//std::cout << "Now trying to listen for Initial announcement\n";
+		broadcast_SocketMap[index] = recvNodeSink;
+        
+    }
+	Ptr<Socket> masterNodeSocket = Socket::CreateSocket (c.Get (numNodes-1), tid);
+   // InetSocketAddress remoteSocket = InetSocketAddress (Ipv4Address ("255.255.255.255"), broadcast_port);
+	InetSocketAddress remoteSocket =InetSocketAddress (Ipv4Address::GetBroadcast (), broadcast_port);
+	//InetSocketAddress localAddress = InetSocketAddress (Ipv4Address::GetAny (),broadcast_port);
+    if(masterNodeSocket==NULL)
+	std::cout << "unable to create broad cast socket on highest node\n";
+	masterNodeSocket->SetAllowBroadcast (true);
+  
+	retval = masterNodeSocket->Connect (remoteSocket);
+    if(retval==-1)
+		std::cout << "error from connecting broad cast socket is" << masterNodeSocket->GetErrno() <<"\n";
+	NS_LOG_LOGIC("sourcenode connect="<<retval);
+   //DCNET_interested_nodes.push_back((int)numNodes-1);
+	masterNodeSocket->SetRecvCallback (MakeCallback (&ReceiveDCNETInterest));
+    //masterNodeSocket->SetAcceptCallback(MakeNu//llCallback<bool, Ptr< Socket >, const Address &> (),
+                                                  //  MakeCallback(&ReceiveDCNETNodeInterestCallback));
+    Simulator::ScheduleNow (&SendBroadcastAnnouncement, masterNodeSocket,init_message,1);
+    Simulator::Schedule (Seconds(time_wait_dcnet),&CheckDCNET,masterNodeSocket);
+	//DCNET_interested_nodes
+	
     if (tracing == true)
     {
         AsciiTraceHelper ascii;

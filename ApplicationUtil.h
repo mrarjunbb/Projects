@@ -59,6 +59,7 @@ Integer g("0xA4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507F"
 Integer q("0xF518AA8781A8DF278ABA4E7D64B7CB9D49462353");
 
 TypeId tid;
+TypeId udptid ;
 Ipv4InterfaceContainer ipInterfaceContainer;
 NodeContainer c;
 //Ptr<Socket> source;
@@ -72,13 +73,13 @@ double waitTime = 0;
 std::stringstream sharedMessage;
 int sender = 0;
 int numberofmessages=3;
-std::string messages[] = {"1010", "101", "10"};
+std::string messages[] = {"1010", "00", "00"};
 std::string Message = "";
 std::string phyMode ("ErpOfdmRate54Mbps");
 double distance = 1;  // m
 uint32_t packetSize =1024; // bytes
 uint32_t numPackets = 60;
-int numNodes = 85;  
+int numNodes =30;  
 uint32_t sinkNode = 0;
 uint32_t sourceNode = 2;
 int dcnet_protocol_start=0;
@@ -92,6 +93,7 @@ std::string topology="ring";
 int publickeyset=0;
 int aesKeyLength = SHA256::DIGESTSIZE;
 byte AESiv[AES::BLOCKSIZE];
+
 static std::string msgs[20];
 
 SecByteBlock AESkey(0x00, AES::DEFAULT_KEYLENGTH);

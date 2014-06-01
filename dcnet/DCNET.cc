@@ -67,6 +67,8 @@ TypeId DCNET::GetTypeId (void)
                   	  UintegerValue (3),
                    MakeUintegerAccessor (&DCNET::m_message_length),
                    MakeUintegerChecker<uint16_t> ())
+	
+	
   ;
   return tid;
 }

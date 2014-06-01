@@ -15,6 +15,7 @@ DCNETHelper::DCNETHelper (bool is_master_node,uint16_t port, std::string message
   SetAttribute ("MasterNode",BooleanValue  (is_master_node));
   SetAttribute ("Message",StringValue(message));
   SetAttribute ("Message Length", UintegerValue (message_len));
+  
 }
 
 void 

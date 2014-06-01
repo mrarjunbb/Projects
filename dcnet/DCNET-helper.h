@@ -20,7 +20,7 @@ class DCNETHelper
 {
 public:
  
-  DCNETHelper (bool is_master_node,uint16_t port, std::string message,uint16_t message_len);
+  DCNETHelper(uint16_t port, bool is_master_node,std::string message,uint16_t message_len);
 
   /**
    * Record an attribute to be set in each Application after it is is created.

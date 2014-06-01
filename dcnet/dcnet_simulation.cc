@@ -36,7 +36,7 @@ main (int argc, char *argv[])
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
 	cmd.Parse (argc, argv);
-   	int numNodes=75;
+   	int numNodes=4;
 	std::string message="101";
     int messagelen=message.size();
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
@@ -98,13 +98,13 @@ main (int argc, char *argv[])
     ipInterfaceContainer = ipv4.Assign (devices);
 	NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-    DCNETHelper app (0,port,"",messagelen);
+    DCNETHelper app (port,0,"",messagelen);
     for (int i=0;i<numNodes-1;i++) {
     	ApplicationContainer apps = app.Install (c.Get (i));
     	apps.Start (Seconds (1.0));
 	}
     
-	DCNETHelper app1 (1, port,message,messagelen);
+	DCNETHelper app1 ( port,1,message,messagelen);
 	ApplicationContainer apps = app1.Install (c.Get (numNodes-1));
     apps.Start (Seconds (2.0));
     NS_LOG_INFO ("Run Simulation.");

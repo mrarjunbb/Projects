@@ -8,7 +8,7 @@
 
 namespace ns3 {
 
-DCNETHelper::DCNETHelper (bool is_master_node,uint16_t port, std::string message,uint16_t message_len)
+DCNETHelper::DCNETHelper(uint16_t port, bool is_master_node,std::string message,uint16_t message_len)
 {
   m_factory.SetTypeId (DCNET::GetTypeId ());
   SetAttribute ("Port", UintegerValue (port));

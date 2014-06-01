@@ -51,14 +51,14 @@ TypeId DCNET::GetTypeId (void)
   static TypeId tid = TypeId ("ns3::DCNET")
     .SetParent<Application> ()
     .AddConstructor<DCNET> ()
+	.AddAttribute ("MasterNode", "Setting whether or node is master node.",
+                  	BooleanValue (0),
+                    MakeBooleanAccessor (&DCNET::m_is_master_node),
+                    MakeBooleanChecker ())
     .AddAttribute ("Port", "Port on which we listen/broadcast packets.",
                    UintegerValue (9999),
                    MakeUintegerAccessor (&DCNET::m_port),
                    MakeUintegerChecker<uint16_t> ())
-	.AddAttribute ("MasterNode", "Setting whether or node is master node.",
-                  	BooleanValue (false),
-                    MakeBooleanAccessor (&DCNET::m_is_master_node),
-                    MakeBooleanChecker ())
 	.AddAttribute ("Message", "Message to be Sent",
                   	StringValue("101"),
                     MakeStringAccessor (&DCNET::m_message),
@@ -67,7 +67,7 @@ TypeId DCNET::GetTypeId (void)
                   	  UintegerValue (3),
                    MakeUintegerAccessor (&DCNET::m_message_length),
                    MakeUintegerChecker<uint16_t> ())
-	
+
 	
   ;
   return tid;
@@ -146,6 +146,7 @@ DCNET::StartApplication (void)
 	m_immediate_neighbor=m_my_nodeid;
 	m_topology="ring";
 	m_rank=1;
+	std::cout << "master node is " << m_is_master_node << "\n";
   	if (m_socket == 0) {
   		TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 		m_socket = Socket::CreateSocket (GetNode (), tid);
@@ -266,12 +267,10 @@ void DCNET::generateKeys(int index)
 void DCNET::GeneratePublickeys()
 {
 	generateKeys(m_my_nodeid);
-	
 	SecByteBlock pub= m_publicKeyMap[m_my_nodeid];
 	Ptr<Packet> sendPacket = Create<Packet> ((uint8_t*)pub.BytePtr(),(uint8_t) pub.SizeInBytes());
 	MyTag sendTag;
-	//int message_id=203;
-    sendTag.SetSimpleValue(MESSAGE_DCNET_PUBLIC_KEYS);
+	sendTag.SetSimpleValue(MESSAGE_DCNET_PUBLIC_KEYS);
 	sendPacket->AddPacketTag(sendTag);
 	for (std::map<int,ns3::Ipv4Address>::iterator it = m_nodeid_nodeaddr.begin() ; it != m_nodeid_nodeaddr.end(); ++it){
 		int neighbor_nodeid= it->first ;
@@ -314,6 +313,59 @@ void DCNET::SendAnnouncementForRing(std::string result, int immediate_neighbor)
 	InetSocketAddress remoteAddress = InetSocketAddress (m_nodeid_nodeaddr[immediate_neighbor],m_unicast_port);
 	m_unicast_socket->Connect(remoteAddress);
     m_unicast_socket->Send(sendPacket);
+}
+void DCNET::SendAnnouncementForFullyConnected(std::string result,int neighborid)
+{
+	//std::cout << "InSendAnnouncementForFullyConnected\n";
+	std::string message = result;
+    Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
+    MyTag sendTag;
+	sendTag.SetSimpleValue(MESSAGE_DCNET_ANOUNCEMENT);
+	sendPacket->AddPacketTag(sendTag);
+	InetSocketAddress remoteAddress = InetSocketAddress (m_nodeid_nodeaddr[neighborid],m_unicast_port);
+	m_unicast_socket->Connect(remoteAddress);
+    int retval=m_unicast_socket->Send(sendPacket);
+	NS_LOG_DEBUG("retval is " <<retval );
+   // std::cout <<"retval is " <<retval << "\n";
+}
+
+void DCNET::GenerateAnnouncementsForFullyConnected()
+{
+	std::ostringstream ss;
+	int bit;
+	for(unsigned  round = 0; round <m_message_length ; round++) {
+		if(m_is_master_node) {
+			NS_LOG_DEBUG("message to be send is " << m_message );
+			bit =  m_message.at(round)-48 ;
+			NS_LOG_DEBUG("bit from master node is" << bit );
+        }
+		int result = 0;
+		std::string prgsecretstring;
+        for (map<int,std::string>::iterator it=m_prngstringMap.begin(); it!=m_prngstringMap.end(); ++it) {
+			//get the adjacent prg string stored in the map
+		    prgsecretstring =  (std::string)it->second;
+			//std::cout <<"prgsecretstring is " << prgsecretstring << "\n";
+            result ^= (prgsecretstring.at(round) - 48);
+			//break;
+		}
+		if(m_is_master_node) {	//exor result with message
+			result ^= bit;
+		}
+		ss << result;
+	}
+	m_announcementMap.insert(pair<int,std::string>(m_my_nodeid,ss.str() ));
+    for (std::map<int,ns3::Ipv4Address>::iterator it=m_nodeid_nodeaddr.begin(); it!=m_nodeid_nodeaddr.end(); ++it) {
+		int neighborid=it->first;
+		if(m_my_nodeid!=neighborid) {
+			//std::cout << "Sending announcement for node " << neighborid << "from node " << m_my_nodeid << "\n";
+			//std::cout << "Message is " << ss.str() <<"\n";
+			Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+			double jitter = uv->GetValue(10,40);
+           	NS_LOG_DEBUG("Sending public key between node " <<m_my_nodeid << "and node "<< neighborid);
+			Simulator::Schedule (Seconds(jitter),&DCNET::SendAnnouncementForFullyConnected,this,ss.str(),neighborid);
+		}
+	}
+		
 }
 
 void DCNET::GenerateAnnouncementsForRing(std::string previous_result)
@@ -539,6 +591,25 @@ void DCNET::SendPrngRecvdToMaster()
     m_unicast_socket->Send(sendPacket);
    // std::cout << "SendPublicKeyRecvdToMaster from node " << m_my_nodeid << "to node " << master_node_id << "\n";
 }
+void DCNET::CalculateFinalAnnouncement()
+{
+	std::ostringstream ss;
+	for(unsigned  round = 0; round <m_message_length ; round++) {
+		int result = 0;
+		std::string announcementstring;
+		//std::cout << "Size of announcment map for node " << m_my_nodeid << "is" <<m_announcementMap.size() <<"\n";
+        for (map<int,std::string>::iterator it=m_announcementMap.begin(); it!=m_announcementMap.end(); ++it) {
+			 announcementstring =  (std::string)it->second;
+			//std::cout <<"announcementstring is " << announcementstring << "\n";
+            result ^= (announcementstring.at(round) - 48);
+			//break;
+		}
+		ss << result;
+    }
+    std::cout << "Message received is " << ss.str() <<" on node " << m_my_nodeid << "\n";
+	//StopApplication();
+	
+}
 
 void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 {
@@ -547,7 +618,7 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
   	Address from;
   	while ((packet = socket->RecvFrom (from)))
   	{
-    	int len = packet->GetSize()+1;
+		int len = packet->GetSize()+1;
       	uint8_t  *buffer = new uint8_t[len];
       	memset(buffer,0,len);
       	int copiedlen = packet->CopyData(buffer,packet->GetSize());
@@ -587,19 +658,36 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 		if(message_id==MESSAGE_DCNET_RCVD_COIN_FLIPS ) {
 			--m_num_coin_ex_confirm;
 			NS_LOG_DEBUG("m_num_coin_ex_confirm " << m_num_coin_ex_confirm);
+			std::cout <<"m_num_coin_ex_confirm " << m_num_coin_ex_confirm;
 			if(m_num_coin_ex_confirm==0) {
 				BroadcastAnnouncementMessage();
-				
+				if(m_topology=="fullyconnected") {
+					std::cout << "Now Generating anouncements from master node\n";
+					GenerateAnnouncementsForFullyConnected();
+				}
 			}
 		}
 		if(message_id==MESSAGE_DCNET_ANOUNCEMENT) {
+			std::string recMessage = std::string((char*)buffer);
 			//std::cout <<"received anouncement on node " << m_my_nodeid << "\n";
 			NS_LOG_DEBUG("received anouncement on node " << m_my_nodeid);
 			if(m_topology=="ring") {
-				std::string recMessage = std::string((char*)buffer);
+				
 				NS_LOG_DEBUG("recMessage " << recMessage);
 				//std::cout <<"received anouncement " << recMessage <<"on node " << m_my_nodeid << "\n";
 				GenerateAnnouncementsForRing(recMessage);
+			}
+			if(m_topology=="fullyconnected") {
+				//std::cout << "In fully connected topology\n";
+				//std::cout << "Announcement received is " << recMessage << "for node " << m_my_nodeid << "\n";
+				int neighbor_nodeid=m_nodeaddr_nodeid[InetSocketAddress::ConvertFrom (from).GetIpv4 ()];
+				m_announcementMap.insert(pair<int,std::string>( neighbor_nodeid,recMessage ));
+				//std::cout << "current size of announcement map is " <<m_announcementMap.size() <<"for node " << m_my_nodeid <<"\n";
+				//check if it received all its announcements
+				if(m_announcementMap.size()==m_nodeaddr_nodeid.size()) {
+					//calculate final announcement
+					CalculateFinalAnnouncement();
+				}
 			}
 			
 		}
@@ -664,9 +752,15 @@ void DCNET::HandleBroadcastRead (Ptr<Socket> socket)
 		}
 		if(messageID==MESSAGE_DCNET_EX_ANNOUNCEMENTS) { 
 			//std::cout << "exchanging Annoucements for node" << m_my_nodeid << "at time "<< Simulator::Now ().GetSeconds () << "\n";
+			//std::cout << "topology is " << m_topology <<"\n";
 			NS_LOG_DEBUG("exchanging Annoucements for node" << m_my_nodeid);
-			if(m_rank==1) {
+			if(m_topology=="ring") {
+				if(m_rank==1) {
 				GenerateAnnouncementsForRing("");
+				}
+			}
+			if(m_topology=="fullyconnected") {
+				GenerateAnnouncementsForFullyConnected();
 			}
 			
 		}

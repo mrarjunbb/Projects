@@ -111,6 +111,9 @@ private:
   void BroadcastFlipMessage();
   void SendPrngRecvdToMaster();
   void BroadcastAnnouncementMessage();
+  void GenerateAnnouncementsForFullyConnected();
+  void SendAnnouncementForFullyConnected(std::string,int);
+  void CalculateFinalAnnouncement();
   uint16_t m_port; //!< Port on which we listen/ broadcast  incoming packets.
   uint16_t m_unicast_port; //!< Port on which we listen/ broadcast  incoming packets.
   bool m_is_master_node;
@@ -125,6 +128,7 @@ private:
   std::map<int,SecByteBlock> m_privateKeyMap;
   std::map<int,SecByteBlock> m_sharedKeyMap;
   std::map<int,std::string> m_prngstringMap;
+  std::map<int,std::string> m_announcementMap;
   int m_pub_keys_recv;
   int m_prng_str_recv;
   int m_my_nodeid;
@@ -134,6 +138,8 @@ private:
   int m_immediate_neighbor;
   int m_num_pub_keys_confirm;
   int m_num_coin_ex_confirm;
+
+  
   std::string m_topology;
   std::string m_final_message;
   const static int MESSAGE_DCNET_QUERY=200;

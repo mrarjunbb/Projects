@@ -98,7 +98,7 @@ private:
    */
   void HandleBroadcastRead (Ptr<Socket> socket);
   void HandleUnicastRead (Ptr<Socket> socket);
-  void SendConfirmation();
+  void SendConfirmation(bool);
   void SendPublicKeys(Ptr<Packet>, int nodeid);
   void ReceivePublicKeys(Ptr<Packet>,Address,uint8_t *);
   void generateKeys(int index);
@@ -138,7 +138,6 @@ private:
   int m_immediate_neighbor;
   int m_num_pub_keys_confirm;
   int m_num_coin_ex_confirm;
-
   
   std::string m_topology;
   std::string m_final_message;

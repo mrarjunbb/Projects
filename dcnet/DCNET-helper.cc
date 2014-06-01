@@ -1,5 +1,5 @@
 #include "DCNET-helper.h"
-#include "ns3/DCNET.h"
+#include "DCNET.h"
 #include "ns3/uinteger.h"
 #include "ns3/boolean.h"
 #include "ns3/names.h"

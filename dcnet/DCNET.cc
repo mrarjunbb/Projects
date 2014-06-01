@@ -131,7 +131,8 @@ void DCNET::SendConfirmation()
     	MyTag sendTag;
     	sendTag.SetSimpleValue(MESSAGE_DCNET_INITIATE);
 		sendPacket->AddPacketTag(sendTag);
-    	m_socket->Send(sendPacket);
+    	int retval=m_socket->Send(sendPacket);
+		std::cout << "retval from broad cast message to dcnet initiate is" << retval << "\n";
         GeneratePublickeys();
 	}
 }

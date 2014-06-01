@@ -277,6 +277,7 @@ void DCNET::GeneratePublickeys()
 		if(m_my_nodeid !=neighbor_nodeid) {
 			Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
 			double jitter = uv->GetValue(10,30);
+			std::cout << "sending public key between node " <<m_my_nodeid << "and node "<< neighbor_nodeid <<"\n";
 			Simulator::Schedule(Seconds(jitter),&DCNET::SendPublicKeys,this,sendPacket, neighbor_nodeid);
         }
     }
@@ -625,15 +626,15 @@ void DCNET::HandleBroadcastRead (Ptr<Socket> socket)
 			}
 	  	}
 	  	if(messageID==MESSAGE_DCNET_INITIATE) {    //Start dcnet protocol by exchanging pub keys
-			//std::cout << recMessage << " on node" << m_my_nodeid <<"\n";
+			std::cout << recMessage << " on node" << m_my_nodeid <<"\n";
 			unsigned pos = recMessage.find("-");
 			std::string dcnet_nodeids = recMessage.substr(pos+1);
 			split(m_nodeaddr_nodeid,m_nodeid_nodeaddr, dcnet_nodeids, ',');
 			m_pub_keys_recv=m_nodeaddr_nodeid.size()-1;
 
-			//std::cout << "my node id is " << m_my_nodeid << " and number of public keys to be recvd is "  << m_pub_keys_recv << "\n";
+			std::cout << "my node id is " << m_my_nodeid << " and number of public keys to be recvd is "  << m_pub_keys_recv << "\n";
 			m_prng_str_recv=m_rank-1;
-			//std::cout << "my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor << "\n";
+			std::cout << "my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor << "\n";
 			GeneratePublickeys();
 	  	}
 		if(messageID==MESSAGE_DCNET_EX_COIN_FLIPS) { 

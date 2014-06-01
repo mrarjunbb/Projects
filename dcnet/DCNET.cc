@@ -546,7 +546,7 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 			ReceivePublicKeys(packet,from,buffer);
 			--m_pub_keys_recv;
 			//if(m_pub_keys_recv%50==0)
-				//std::cout << "number of public keys_to_be recvd is " << m_pub_keys_recv  <<"on node " << m_my_nodeid << "\n";
+			std::cout << "number of public keys_to_be recvd is " << m_pub_keys_recv  <<"on node " << m_my_nodeid << "\n";
 			//std::cout << "Yet to be Received public keys for node " << m_pub_keys_recv << "\n";
 			if(m_pub_keys_recv==0) {
         		//std::cout << "Received all public keys for node " << m_my_nodeid << "\n";

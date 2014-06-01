@@ -36,7 +36,7 @@ main (int argc, char *argv[])
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
 	cmd.Parse (argc, argv);
-   	int numNodes=5;
+   	int numNodes=75;
 	std::string message="101";
     int messagelen=message.size();
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);

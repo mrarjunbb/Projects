@@ -36,7 +36,11 @@ main (int argc, char *argv[])
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
 	cmd.Parse (argc, argv);
-   	int numNodes=21;
+   	int numNodes=70;
+	std::string message="101110";
+    int messagelen=message.size();
+	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
+	cmd.AddValue ("message", "Message to be sent", message);
     // disable fragmentation for frames below 2200 bytes
     Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
     Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",StringValue (phyMode));
@@ -94,20 +98,19 @@ main (int argc, char *argv[])
     ipInterfaceContainer = ipv4.Assign (devices);
 	NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-    DCNETHelper app (0,port);
+    DCNETHelper app (0,port,"",messagelen);
     for (int i=0;i<numNodes-1;i++) {
     	ApplicationContainer apps = app.Install (c.Get (i));
     	apps.Start (Seconds (1.0));
 	}
     
-	DCNETHelper app1 (1, port);
+	DCNETHelper app1 (1, port,message,messagelen);
 	ApplicationContainer apps = app1.Install (c.Get (numNodes-1));
     apps.Start (Seconds (2.0));
-
-
-  NS_LOG_INFO ("Run Simulation.");
-  Simulator::Run ();
-  Simulator::Destroy ();
-  NS_LOG_INFO ("Done.");
+    NS_LOG_INFO ("Run Simulation.");
+    Simulator::Stop (Seconds(2000));
+    Simulator::Run ();
+    Simulator::Destroy ();
+    NS_LOG_INFO ("Done.");
 
 }

@@ -32,12 +32,12 @@ NS_LOG_COMPONENT_DEFINE ("DCNET_simulation");
 int 
 main (int argc, char *argv[])
 {
-    NS_LOG_UNCOND("Inside Main");
+    NS_LOG_UNCOND("Inside Main josh");
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
 	cmd.Parse (argc, argv);
-   	int numNodes=25;
-	std::string message="101110";
+   	int numNodes=5;
+	std::string message="101";
     int messagelen=message.size();
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
 	cmd.AddValue ("message", "Message to be sent", message);

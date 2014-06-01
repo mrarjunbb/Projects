@@ -106,6 +106,11 @@ private:
   void GenerateAnnouncementsForRing(std::string);
   void SendAnnouncementForRing(std::string result, int immediate_neighbor);
   void split(std::map<ns3::Ipv4Address,int> &, std::map<int,ns3::Ipv4Address> &,const std::string &, char );
+  void ReSendCoinFlip(Ptr<Packet>,Address);
+  void SendPublicKeyRecvdToMaster();
+  void BroadcastFlipMessage();
+  void SendPrngRecvdToMaster();
+  void BroadcastAnnouncementMessage();
   uint16_t m_port; //!< Port on which we listen/ broadcast  incoming packets.
   uint16_t m_unicast_port; //!< Port on which we listen/ broadcast  incoming packets.
   bool m_is_master_node;
@@ -124,9 +129,11 @@ private:
   int m_prng_str_recv;
   int m_my_nodeid;
   int m_dhAgreedLength;
-  int m_message_length;  
+  unsigned m_message_length;  
   int m_rank;
   int m_immediate_neighbor;
+  int m_num_pub_keys_confirm;
+  int m_num_coin_ex_confirm;
   std::string m_topology;
   std::string m_final_message;
   const static int MESSAGE_DCNET_QUERY=200;
@@ -137,7 +144,11 @@ private:
   const static int MESSAGE_DCNET_PRNG_STRING=204;
   const static int MESSAGE_DCNET_ANOUNCEMENT=205;
   const static int MESSAGE_DCNET_FINAL_ANOUNCEMENT=206;
-
+  const static int MESSAGE_DCNET_RE_PRNG_STRING=207;
+  const static int MESSAGE_DCNET_RECVD_PUB_KEYS=208;
+  const static int MESSAGE_DCNET_EX_COIN_FLIPS=209;
+  const static int MESSAGE_DCNET_RCVD_COIN_FLIPS=210;
+  const static int MESSAGE_DCNET_EX_ANNOUNCEMENTS=211;
 };
 
 } // namespace ns3

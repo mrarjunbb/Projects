@@ -7,6 +7,7 @@
 #include "ns3/object-factory.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
+#include <string>
 
 namespace ns3 {
 
@@ -19,7 +20,7 @@ class DCNETHelper
 {
 public:
  
-  DCNETHelper (bool is_master_node,uint16_t port);
+  DCNETHelper (bool is_master_node,uint16_t port, std::string message,uint16_t message_len);
 
   /**
    * Record an attribute to be set in each Application after it is is created.

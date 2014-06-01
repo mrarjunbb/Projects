@@ -2,15 +2,19 @@
 #include "DCNET.h"
 #include "ns3/uinteger.h"
 #include "ns3/boolean.h"
+#include "ns3/string.h"
 #include "ns3/names.h"
+#include <string>
 
 namespace ns3 {
 
-DCNETHelper::DCNETHelper (bool is_master_node,uint16_t port)
+DCNETHelper::DCNETHelper (bool is_master_node,uint16_t port, std::string message,uint16_t message_len)
 {
   m_factory.SetTypeId (DCNET::GetTypeId ());
   SetAttribute ("Port", UintegerValue (port));
   SetAttribute ("MasterNode",BooleanValue  (is_master_node));
+  SetAttribute ("Message",StringValue(message));
+  SetAttribute ("Message Length", UintegerValue (message_len));
 }
 
 void 

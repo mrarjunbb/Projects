@@ -132,13 +132,15 @@ private:
   int m_pub_keys_recv;
   int m_prng_str_recv;
   int m_my_nodeid;
+  int m_my_start_cluster_node;
   int m_dhAgreedLength;
-  unsigned m_message_length;  
+  unsigned m_message_length; 
+  int m_master_nodeid; 
   int m_rank;
   int m_immediate_neighbor;
   int m_num_pub_keys_confirm;
   int m_num_coin_ex_confirm;
-  
+  bool m_dcnet_start;
   std::string m_topology;
   std::string m_final_message;
   const static int MESSAGE_DCNET_QUERY=200;

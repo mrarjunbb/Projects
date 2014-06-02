@@ -51,18 +51,21 @@ TypeId DCNET::GetTypeId (void)
   static TypeId tid = TypeId ("ns3::DCNET")
     .SetParent<Application> ()
     .AddConstructor<DCNET> ()
+	.AddAttribute ("Port", "Port on which we listen/broadcast packets.",
+                   UintegerValue (9999),
+                   MakeUintegerAccessor (&DCNET::m_port),
+                   MakeUintegerChecker<uint16_t> ())
+
 	.AddAttribute ("MasterNode", "Setting whether or node is master node.",
                   	BooleanValue (0),
                     MakeBooleanAccessor (&DCNET::m_is_master_node),
                     MakeBooleanChecker ())
-    .AddAttribute ("Port", "Port on which we listen/broadcast packets.",
-                   UintegerValue (9999),
-                   MakeUintegerAccessor (&DCNET::m_port),
-                   MakeUintegerChecker<uint16_t> ())
+
 	.AddAttribute ("Message", "Message to be Sent",
                   	StringValue("101"),
                     MakeStringAccessor (&DCNET::m_message),
                     MakeStringChecker ())
+
 	.AddAttribute ("Message Length", "Message Length to be Sent",
                   	  UintegerValue (3),
                    MakeUintegerAccessor (&DCNET::m_message_length),
@@ -110,12 +113,13 @@ void DCNET::SendConfirmation(bool isFirstMessage)
 		m_nodeaddr_nodeid.insert(pair<ns3::Ipv4Address,int>(ipAddr,m_my_nodeid));
 		m_nodeid_nodeaddr.insert(pair<int,ns3::Ipv4Address>(m_my_nodeid,ipAddr));
 		m_num_pub_keys_confirm=m_nodeaddr_nodeid.size()-1;
-		m_num_coin_ex_confirm=m_nodeaddr_nodeid.size()-1;
+		m_num_coin_ex_confirm=m_nodeaddr_nodeid.size()-2;
 		m_rank=m_my_nodeid;
-		m_prng_str_recv=m_rank;
+		m_prng_str_recv=m_nodeaddr_nodeid.size()-1;
 	}
 	if(m_nodeaddr_nodeid.size() <3) {
 		NS_LOG_DEBUG("There are not enough nodes interested to participate in DCNET.So exiting simulation\n");
+		NS_LOG_DEBUG("my node id is" <<m_my_nodeid );
 		
 	}
     else 
@@ -129,6 +133,7 @@ void DCNET::SendConfirmation(bool isFirstMessage)
         message.erase(message.find_last_not_of(" \n\r\t")+1);
 		message.erase(message.find_last_not_of(",")+1);
         NS_LOG_DEBUG("message to be sent is " << message << "\n");
+		std::cout << "sending dcnet protocol start message by master node " << m_my_nodeid << "with message " << message << "\n";
     	Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     	MyTag sendTag;
     	sendTag.SetSimpleValue(MESSAGE_DCNET_INITIATE);
@@ -146,9 +151,12 @@ DCNET::StartApplication (void)
   	m_my_nodeid=GetNode()->GetId();
   	m_unicast_port=9908;
 	m_immediate_neighbor=m_my_nodeid;
+	m_my_start_cluster_node = m_my_nodeid;
 	m_topology="ring";
 	m_rank=1;
-	NS_LOG_DEBUG("master node is " << m_is_master_node << "\n");
+	m_dcnet_start=false;
+	NS_LOG_DEBUG("master node is " << m_is_master_node << "\n");  
+	//std::cout << "my node is " << m_my_nodeid << "and my master node is set to " << m_is_master_node << "\n";
   	if (m_socket == 0) {
   		TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 		m_socket = Socket::CreateSocket (GetNode (), tid);
@@ -167,11 +175,12 @@ DCNET::StartApplication (void)
     	m_socket->SetAllowBroadcast (true);
 		m_socket->Connect (remoteSocket);
 		m_socket->SetRecvCallback (MakeCallback (&DCNET::HandleBroadcastRead,this));
-		std::string message = "DCNET interest query";
+		std::string message = "200";
 		//int message_id=200;
     	Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
     	MyTag sendTag;
-    	sendTag.SetSimpleValue(MESSAGE_DCNET_QUERY);
+    	//sendTag.SetSimpleValue(MESSAGE_DCNET_QUERY);
+		sendTag.SetSimpleValue(m_my_nodeid);
 		sendPacket->AddPacketTag(sendTag);
     	int retval=m_socket->Send(sendPacket);
 		NS_LOG_DEBUG("retval  is" << retval);
@@ -223,7 +232,10 @@ void DCNET::split(std::map<ns3::Ipv4Address,int> &nodeaddr_id, std::map<int,ns3:
        // std::cout << "my immediate_neighbor is " << m_immediate_neighbor << "\n";
         NS_LOG_DEBUG("currently processing node id " << node_id <<"\n");
 		NS_LOG_DEBUG("I am node " <<m_my_nodeid << "\n");
+		//std::cout << "my start cluster node is " << m_my_start_cluster_node  << "\n";
 	    if((m_immediate_neighbor < node_id) && (m_immediate_neighbor== m_my_nodeid )) m_immediate_neighbor=node_id;
+	    if(m_my_start_cluster_node > node_id) m_my_start_cluster_node=node_id;
+		if(m_master_nodeid <node_id )m_master_nodeid= node_id;
 		if(m_my_nodeid >node_id) {
 			m_rank=m_rank+1;
 			
@@ -238,7 +250,9 @@ void DCNET::split(std::map<ns3::Ipv4Address,int> &nodeaddr_id, std::map<int,ns3:
   	pos=node_id_addr.find(':');
   	std::string add= node_id_addr.substr(0,pos);
   	std::istringstream ( node_id_addr.substr(pos+1) ) >> node_id;
-	 if((m_immediate_neighbor < node_id) && (m_immediate_neighbor== m_my_nodeid )) m_immediate_neighbor=node_id;
+	if((m_immediate_neighbor < node_id) && (m_immediate_neighbor== m_my_nodeid )) m_immediate_neighbor=node_id;
+	if(m_master_nodeid <node_id )m_master_nodeid= node_id;
+	if(m_my_start_cluster_node > node_id) m_my_start_cluster_node=node_id;
   	NS_LOG_DEBUG("node is" <<  m_my_nodeid << "address is" << add << "\n");
    	Ipv4Address addr(add.c_str() );
     nodeaddr_id.insert(pair<ns3::Ipv4Address,int>(addr,node_id));
@@ -280,6 +294,7 @@ void DCNET::GeneratePublickeys()
 		if(m_my_nodeid !=neighbor_nodeid) {
 			Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
 			double jitter = uv->GetValue(10,30);
+			//std::cout << "Sending public key between node " <<m_my_nodeid << "and node "<< neighbor_nodeid << "\n";
            	NS_LOG_DEBUG("Sending public key between node " <<m_my_nodeid << "and node "<< neighbor_nodeid);
 			Simulator::Schedule(Seconds(jitter),&DCNET::SendPublicKeys,this,sendPacket, neighbor_nodeid);
         }
@@ -439,6 +454,7 @@ void DCNET::ReceiveCoinFlip (Ptr<Packet> recPacket,Address from)
     recPacket->CopyData(buffer,recPacket->GetSize());
     std::string recMessage = std::string((char*)buffer);
     std::string dec=recMessage;
+	//std::cout << "received coin flip on node " << m_my_nodeid << "\n";
 	//std::string decrypted, dec;
 
 	/*recMessage = recMessage.substr (0,m_message_length);
@@ -475,13 +491,15 @@ void DCNET::ReceiveCoinFlip (Ptr<Packet> recPacket,Address from)
 	}
 	delete buffer;
 	//if(m_prng_str_recv%50==0)
-		NS_LOG_DEBUG("number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid << "\n");
+	NS_LOG_DEBUG("number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid << "\n");
 	NS_LOG_DEBUG("number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid );
+	//std::cout << "number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid << "\n";
   	if(m_prng_str_recv == 0)
     {
 		NS_LOG_DEBUG("number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid );
 		NS_LOG_DEBUG("number of prng_to_be recvd is " << m_prng_str_recv  <<"on node " << m_my_nodeid << "\n");
-	 	SendPrngRecvdToMaster();
+		if(!m_is_master_node)
+	 		SendPrngRecvdToMaster();
 	}
 }
 void DCNET::ReSendCoinFlip(Ptr<Packet> packet,Address from)
@@ -525,7 +543,7 @@ void DCNET::GenerateCoinFlips()
 			StringSource( message, true, new StreamTransformationFilter( cfbEncryption,new StringSink( encrypted )));*/
 
 			Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-			double jitter = uv->GetValue(10,20);
+			double jitter = uv->GetValue(0.01,20);
             Simulator::Schedule(Seconds(jitter),&DCNET::SendCoinFlips,this,encrypted,neighbor_nodeid);	
 		}
     }
@@ -568,7 +586,9 @@ void DCNET::BroadcastAnnouncementMessage()
 }
 void DCNET::SendPublicKeyRecvdToMaster()
 {
-	int master_node_id= m_nodeid_nodeaddr.size()-1;
+	int master_node_id= m_master_nodeid;
+	
+	//std::cout << "In SendPublicKeyRecvdToMaster :my masternodeid is" << master_node_id << "\n";
 	std::string message="Rcvd_my_publicKeys";
 	NS_LOG_DEBUG("Rcvd_my_publicKeys" );
 	Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
@@ -582,7 +602,8 @@ void DCNET::SendPublicKeyRecvdToMaster()
 }
 void DCNET::SendPrngRecvdToMaster()
 {
-	int master_node_id= m_nodeid_nodeaddr.size()-1;
+	int master_node_id= m_master_nodeid;
+	//std::cout << "Sending SendPrngRecvdToMaster" <<"to my master " << master_node_id <<"\n";
 	std::string message="Rcvd_my_coinflips";
 	NS_LOG_DEBUG("Rcvd_my_coinflips" );
 	Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
@@ -633,12 +654,13 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 			ReceivePublicKeys(packet,from,buffer);
 			--m_pub_keys_recv;
 			//if(m_pub_keys_recv%50==0)
-			std::cout << "number of public keys_to_be recvd is " << m_pub_keys_recv  <<"on node " << m_my_nodeid << "\n";
-			NS_LOG_DEBUG("number of public keys_to_be recvd is " << m_pub_keys_recv  <<"on node " << m_my_nodeid  );
+			//std::cout << "number of public keys_to_be recvd is " << m_pub_keys_recv  <<"for node " << m_my_nodeid << "\n";
+			NS_LOG_DEBUG("number of public keys_to_be recvd is " << m_pub_keys_recv  <<"for node " << m_my_nodeid  );
 			NS_LOG_DEBUG("Yet to be Received public keys for node " << m_pub_keys_recv << "\n");
 			if(m_pub_keys_recv==0) {
 				NS_LOG_DEBUG("Received all public keys for node " << m_my_nodeid );
         		NS_LOG_DEBUG("Received all public keys for node " << m_my_nodeid << "\n");
+				//std::cout << "sending Recvd AllPublicKeys" << "by node " << m_my_nodeid << "\n";
 				 SendPublicKeyRecvdToMaster();
             }
 	  	}
@@ -651,19 +673,28 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 		if(message_id==MESSAGE_DCNET_RECVD_PUB_KEYS ) {
 			--m_num_pub_keys_confirm;
 			NS_LOG_DEBUG("current number of public keys confirmations needed " << m_num_pub_keys_confirm);
-			if(m_num_pub_keys_confirm %10==0)
-				std::cout << "current number of public keys confirmations needed " << m_num_pub_keys_confirm <<"\n";
+			if(m_num_pub_keys_confirm %20==0)
+				std::cout << "current number of keys confirmationsneeded " << m_num_pub_keys_confirm <<"by node" << m_my_nodeid <<"\n";
 			if(m_num_pub_keys_confirm==0) {
-				BroadcastFlipMessage();
-				GenerateCoinFlips();
+				std::cout << "Node " << m_my_nodeid << "is broad casting Exchange coin flips message " << "\n";
+				Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+				double jitter = uv->GetValue(0.1,0.6);
+            	Simulator::Schedule(Seconds(jitter),&DCNET::BroadcastFlipMessage,this);
+				//BroadcastFlipMessage();
+				//GenerateCoinFlips();
+				jitter = uv->GetValue(0.1,0.6);
+            	Simulator::Schedule(Seconds(jitter),&DCNET::GenerateCoinFlips,this);
 			}
 		}
 		if(message_id==MESSAGE_DCNET_RCVD_COIN_FLIPS ) {
 			--m_num_coin_ex_confirm;
 			NS_LOG_DEBUG("m_num_coin_ex_confirm " << m_num_coin_ex_confirm);
-			//std::cout <<"m_num_coin_ex_confirm " << m_num_coin_ex_confirm;
+			//std::cout <<"m_num_coin_ex_confirm " << m_num_coin_ex_confirm << "for my node " << m_my_nodeid << "\n";
 			if(m_num_coin_ex_confirm==0) {
-				BroadcastAnnouncementMessage();
+				Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+				double jitter = uv->GetValue(0.1,0.6);
+            	Simulator::Schedule(Seconds(jitter),&DCNET::BroadcastAnnouncementMessage,this);
+				//BroadcastAnnouncementMessage();
 				if(m_topology=="fullyconnected") {
 					std::cout << "Now Generating anouncements from master node\n";
 					GenerateAnnouncementsForFullyConnected();
@@ -678,7 +709,10 @@ void DCNET::HandleUnicastRead (Ptr<Socket> socket)
 				
 				NS_LOG_DEBUG("recMessage " << recMessage);
 				//std::cout <<"received anouncement " << recMessage <<"on node " << m_my_nodeid << "\n";
-				GenerateAnnouncementsForRing(recMessage);
+				Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+				double jitter = uv->GetValue(0.1,0.6);
+            	Simulator::Schedule(Seconds(jitter),&DCNET::GenerateAnnouncementsForRing,this,recMessage);
+				//GenerateAnnouncementsForRing(recMessage);
 			}
 			if(m_topology=="fullyconnected") {
 				NS_LOG_DEBUG("In fully connected topology\n");
@@ -719,10 +753,11 @@ void DCNET::HandleBroadcastRead (Ptr<Socket> socket)
       	std::string recMessage = std::string((char*)buffer);
 		//recMessage = recMessage.substr (0,recMessage.size());
 	  	delete buffer;
-	  	if(messageID==MESSAGE_DCNET_QUERY) {      //DCNET Interest message
+	  	if(recMessage=="200") {      //DCNET Interest message
 			NS_LOG_DEBUG("received DCNET query message " << recMessage << " for node " << m_my_nodeid <<"\n");
 			NS_LOG_DEBUG("received DCNET query message " << recMessage << " for node " << m_my_nodeid );
-			if(!m_accept_dcnet)  {
+			if((! m_accept_dcnet) &&(!m_is_master_node) )  {
+				
 				m_accept_dcnet=true;
 				packet->RemoveAllPacketTags ();
   				packet->RemoveAllByteTags ();
@@ -735,43 +770,69 @@ void DCNET::HandleBroadcastRead (Ptr<Socket> socket)
 			}
 	  	}
 	  	if(messageID==MESSAGE_DCNET_INITIATE) {    //Start dcnet protocol by exchanging pub keys
-			NS_LOG_DEBUG(recMessage << " on node" << m_my_nodeid );
-			std::cout << recMessage << " on node" << m_my_nodeid <<"\n";
-			unsigned pos = recMessage.find("-");
-			std::string dcnet_nodeids = recMessage.substr(pos+1);
-			split(m_nodeaddr_nodeid,m_nodeid_nodeaddr, dcnet_nodeids, ',');
-			m_pub_keys_recv=m_nodeaddr_nodeid.size()-1;
-            NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and number of public keys to be recvd is "  << m_pub_keys_recv);
-			NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and number of public keys to be recvd is "  << m_pub_keys_recv << "\n");
-			m_prng_str_recv=m_rank-1;
-			NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor << "\n");
-			NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor);
-			GeneratePublickeys();
-	  	}
-		if(messageID==MESSAGE_DCNET_EX_COIN_FLIPS) { 
-			NS_LOG_DEBUG("exchanging coin flips for node" << m_my_nodeid << "at time "<< Simulator::Now ().GetSeconds () << "\n");
-			NS_LOG_DEBUG("exchanging coin flips for node" << m_my_nodeid);
-			GenerateCoinFlips();
-		}
-		if(messageID==MESSAGE_DCNET_EX_ANNOUNCEMENTS) { 
-			NS_LOG_DEBUG("exchanging Annoucements for node" << m_my_nodeid << "at time "<< Simulator::Now ().GetSeconds () << "\n");
-			NS_LOG_DEBUG("topology is " << m_topology <<"\n");
-			NS_LOG_DEBUG("exchanging Annoucements for node" << m_my_nodeid);
-			if(m_topology=="ring") {
-				if(m_rank==1) {
-				GenerateAnnouncementsForRing("");
+			if(! m_dcnet_start) {
+				unsigned pos = recMessage.find("-");
+				std::string dcnet_nodeids = recMessage.substr(pos+1);
+				//std::cout << "my cluster node id is " << m_my_start_cluster_node << "\n";
+				split(m_nodeaddr_nodeid,m_nodeid_nodeaddr, dcnet_nodeids, ',');
+		        if(m_nodeid_nodeaddr.find(m_my_nodeid)!= m_nodeid_nodeaddr.end() ) {
+					NS_LOG_DEBUG(recMessage << " on node" << m_my_nodeid );
+					//std::cout << recMessage << " on node" << m_my_nodeid <<"\n";
+					m_pub_keys_recv=m_nodeaddr_nodeid.size()-1;
+				    NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and number of public keys to be recvd is "  << m_pub_keys_recv);
+					//std::cout << "my node id is " << m_my_nodeid << "and rank  is " << m_rank<<"\n";
+					//std::cout << "my node id is " << m_my_nodeid << "and immediate neighbor  is " << m_immediate_neighbor<<"\n";
+					//std::cout << "my node id is " << m_my_nodeid << "and starting cluser node is " <<m_my_start_cluster_node<<"\n";
+					m_prng_str_recv=m_my_nodeid- m_my_start_cluster_node;
+					//std::cout << "my node id is " << m_my_nodeid << "and number of prng  required is " << m_prng_str_recv <<"\n";
+					NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor << "\n");
+					NS_LOG_DEBUG("my node id is " << m_my_nodeid << " and my next immediate neighbor is "  << m_immediate_neighbor);
+					m_accept_dcnet=true;
+					m_dcnet_start=true;
+					GeneratePublickeys();
+				}
+				else {
+					m_immediate_neighbor=m_my_nodeid;
+					m_my_start_cluster_node = m_my_nodeid;
+					m_rank=1;
+					m_accept_dcnet=false;
+					m_nodeaddr_nodeid.clear();
+					m_nodeid_nodeaddr.clear();
+				
 				}
 			}
-			if(m_topology=="fullyconnected") {
-				GenerateAnnouncementsForFullyConnected();
+		}
+		if(messageID==MESSAGE_DCNET_EX_COIN_FLIPS) { 
+			//check if broad cast node id is in its map
+			if(m_nodeaddr_nodeid.find(InetSocketAddress::ConvertFrom (from).GetIpv4 ())!= m_nodeaddr_nodeid.end() )  {
+				NS_LOG_DEBUG("exchanging coin flips for node" << m_my_nodeid << "at time "<< Simulator::Now ().GetSeconds () << "\n");
+				NS_LOG_DEBUG("exchanging coin flips for node" << m_my_nodeid);
+				GenerateCoinFlips();
 			}
-			
+		}
+		if(messageID==MESSAGE_DCNET_EX_ANNOUNCEMENTS) { 
+			if(m_nodeaddr_nodeid.find(InetSocketAddress::ConvertFrom (from).GetIpv4 ())!= m_nodeaddr_nodeid.end() ) {
+				NS_LOG_DEBUG("exchanging Annoucements for node" << m_my_nodeid << "at time "<< Simulator::Now ().GetSeconds () << "\n");
+				NS_LOG_DEBUG("topology is " << m_topology <<"\n");
+				NS_LOG_DEBUG("exchanging Annoucements for node" << m_my_nodeid);
+				if(m_topology=="ring") {
+					if(m_rank==1) {
+						GenerateAnnouncementsForRing("");
+					}
+                }
+				if(m_topology=="fullyconnected") {
+					GenerateAnnouncementsForFullyConnected();
+				}
+				
+			}
 		}
 		if(messageID==MESSAGE_DCNET_FINAL_ANOUNCEMENT) {
-			NS_LOG_DEBUG("received final announcement " << recMessage <<" on node " << m_my_nodeid );
-			std::cout << "received final announcement " << recMessage <<" on node " << m_my_nodeid <<"\n";
-			m_final_message=recMessage;
-			StopApplication();
+			if(m_nodeaddr_nodeid.find(InetSocketAddress::ConvertFrom (from).GetIpv4 ())!= m_nodeaddr_nodeid.end() ) {
+				NS_LOG_DEBUG("received final announcement " << recMessage <<" on node " << m_my_nodeid );
+				std::cout << "received final announcement " << recMessage <<" on node " << m_my_nodeid <<"\n";
+				m_final_message=recMessage;
+				StopApplication();
+			}
 		}
 	  	else
 	  	{   //This is dcnet acceptance message

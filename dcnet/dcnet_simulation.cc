@@ -36,11 +36,18 @@ main (int argc, char *argv[])
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
 	cmd.Parse (argc, argv);
-   	int numNodes=4;
-	std::string message="101";
-    int messagelen=message.size();
+   	int numNodes=100;
+
+	std::string message1="101";
+    std::string message2="1111";
+    std::string message3="111111";
+
+    uint16_t messagelen1=message1.size();
+	uint16_t messagelen2=message2.size();
+	uint16_t messagelen3=message3.size();
+
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
-	cmd.AddValue ("message", "Message to be sent", message);
+	//cmd.AddValue ("message", "Message to be sent", message);
     // disable fragmentation for frames below 2200 bytes
     Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
     Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",StringValue (phyMode));
@@ -98,16 +105,47 @@ main (int argc, char *argv[])
     ipInterfaceContainer = ipv4.Assign (devices);
 	NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-    DCNETHelper app (port,0,"",messagelen);
-    for (int i=0;i<numNodes-1;i++) {
-    	ApplicationContainer apps = app.Install (c.Get (i));
-    	apps.Start (Seconds (1.0));
+
+    DCNETHelper app1 (port,false,"",messagelen1);
+	DCNETHelper app2 (port,false,"",messagelen2);
+	DCNETHelper app3 (port,false,"",messagelen3);
+
+    DCNETHelper app4 ( port,true,message1,messagelen1);
+    DCNETHelper app5 ( port,true,message2,messagelen2);
+	DCNETHelper app6 ( port,true,message3,messagelen3);
+
+	ApplicationContainer apps1 ;
+    ApplicationContainer apps2;
+    ApplicationContainer apps3;
+
+	ApplicationContainer apps4 ;
+    ApplicationContainer apps5;
+    ApplicationContainer apps6;
+    //first cluster
+	for(int i=0;i<29;i++) {
+    	apps1 = app1.Install (c.Get (i));
+    	apps1.Start (Seconds (1.0));
+	   
 	}
-    
-	DCNETHelper app1 ( port,1,message,messagelen);
-	ApplicationContainer apps = app1.Install (c.Get (numNodes-1));
-    apps.Start (Seconds (2.0));
-    NS_LOG_INFO ("Run Simulation.");
+	apps4 = app4.Install (c.Get (29));    //first master node
+    apps4.Start (Seconds (2.0));
+
+	for(int i=30;i<59;i++) {
+    	apps2 = app2.Install (c.Get (i));
+    	apps2.Start (Seconds (3.0));
+    }
+
+	apps5 = app5.Install (c.Get (59));
+    apps5.Start (Seconds (4.0));
+
+	for(int i=60;i<99;i++) {
+    	apps3 = app3.Install (c.Get (i));
+    	apps3.Start (Seconds (5.0));
+    }
+	apps6 = app6.Install (c.Get (99));
+    apps6.Start (Seconds (6.0));
+  
+   	NS_LOG_INFO ("Run Simulation.");
     Simulator::Stop (Seconds(2000));
     Simulator::Run ();
     Simulator::Destroy ();

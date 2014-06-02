@@ -22,6 +22,8 @@
 #include "ns3/core-module.h"
 #include "ns3/csma-module.h"
 #include "ns3/names.h"
+#include "ns3/flow-monitor-module.h" 
+#include "ns3/netanim-module.h"
 
 
 using namespace ns3;
@@ -147,7 +149,35 @@ main (int argc, char *argv[])
   
    	NS_LOG_INFO ("Run Simulation.");
     Simulator::Stop (Seconds(2000));
+	AnimationInterface anim("dcnet_net_anim.xml");
+	anim.EnablePacketMetadata(true);
+    FlowMonitorHelper flowmon;
+	Ptr<FlowMonitor> monitor = flowmon.InstallAll();    
     Simulator::Run ();
+   	monitor->CheckForLostPackets (); 
+    Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
+    std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
+	uint32_t txPacketsum = 0;
+    uint32_t rxPacketsum = 0;
+    uint32_t DropPacketsum = 0;
+    uint32_t LostPacketsum = 0;
+    double Delaysum = 0;
+	for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i =stats.begin (); i != stats.end (); i++) {
+        txPacketsum += i->second.txPackets;
+        rxPacketsum += i->second.rxPackets;
+        LostPacketsum += i->second.lostPackets;
+        DropPacketsum += i->second.packetsDropped.size();
+        Delaysum += i->second.delaySum.GetSeconds();
+  
+	}
+	std::cout << "  All Tx Packets: " << txPacketsum << "\n";
+    std::cout << "  All Rx Packets: " << rxPacketsum << "\n";
+    std::cout << "  All Delay: " << Delaysum / txPacketsum <<"\n";
+    std::cout << "  All Lost Packets: " << LostPacketsum << "\n";
+    std::cout << "  All Drop Packets: " << DropPacketsum << "\n";
+    std::cout << "  Packets Delivery Ratio: " << ((rxPacketsum *100) /txPacketsum) << "%" << "\n";
+    std::cout << "  Packets Lost Ratio: " << ((LostPacketsum *100) /txPacketsum) << "%" << "\n";
+    monitor->SerializeToXmlFile("dcnet_ring.flowmon",true,true);
     Simulator::Destroy ();
     NS_LOG_INFO ("Done.");
 

@@ -222,7 +222,8 @@ void DCNET::split(std::map<ns3::Ipv4Address,int> &nodeaddr_id, std::map<int,ns3:
   	int node_id;
   	std::string node_id_addr;
   	unsigned pos=0;
-  	while ((end = text.find(sep, start)) != std::string::npos) {
+  	while ( text.find(sep, start)) != std::string::npos) {
+		end = text.find(sep, start);
 		node_id_addr=text.substr(start, end - start);
 	 	NS_LOG_DEBUG("node_id_addr" << node_id_addr << "\n");
 	 	pos=node_id_addr.find(':');

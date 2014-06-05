@@ -127,7 +127,7 @@ private:
   Address m_local; //!< local  address
   EventId         m_sendBroadcastEvent;     //!< Event id for next start or stop event
   EventId           m_sendConfirmationEvent;
-  int m_num_message_repeat;
+ 
   bool m_publickey_gen;
   double m_time_wait_dcnet;
   std::map<int,SecByteBlock> m_publicKeyMap;
@@ -148,6 +148,7 @@ private:
   int m_num_coin_ex_confirm;
   bool m_dcnet_start;
   std::string m_topology;
+  unsigned m_num_message_repeat;
   std::string m_final_message;
   const static int MESSAGE_DCNET_QUERY=200;
   std::string m_message;

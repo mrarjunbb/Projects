@@ -8,13 +8,14 @@
 
 namespace ns3 {
 
-DCNETHelper::DCNETHelper(uint16_t port, bool is_master_node,std::string message,uint16_t message_len)
+DCNETHelper::DCNETHelper(uint16_t port, std::string message,uint16_t message_len,std::string topology,uint16_t repeat)
 {
   m_factory.SetTypeId (DCNET::GetTypeId ());
   SetAttribute ("Port", UintegerValue (port));
-  SetAttribute ("MasterNode",BooleanValue  (is_master_node));
   SetAttribute ("Message",StringValue(message));
   SetAttribute ("Message Length", UintegerValue (message_len));
+  SetAttribute ("Topology",StringValue(topology));
+  SetAttribute ("Caching function",UintegerValue (repeat));
   
 }
 

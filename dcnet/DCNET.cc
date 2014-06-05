@@ -57,11 +57,6 @@ TypeId DCNET::GetTypeId (void)
                    MakeUintegerAccessor (&DCNET::m_port),
                    MakeUintegerChecker<uint16_t> ())
 
-	.AddAttribute ("MasterNode", "Setting whether or node is master node.",
-                  	BooleanValue (0),
-                    MakeBooleanAccessor (&DCNET::m_is_master_node),
-                    MakeBooleanChecker ())
-
 	.AddAttribute ("Message", "Message to be Sent",
                   	StringValue("101"),
                     MakeStringAccessor (&DCNET::m_message),
@@ -70,6 +65,16 @@ TypeId DCNET::GetTypeId (void)
 	.AddAttribute ("Message Length", "Message Length to be Sent",
                   	  UintegerValue (3),
                    MakeUintegerAccessor (&DCNET::m_message_length),
+                   MakeUintegerChecker<uint16_t> ())
+
+   .AddAttribute ("Topology", "Topology to be used",
+                  	StringValue("ring"),
+                    MakeStringAccessor (&DCNET::m_topology),
+                    MakeStringChecker ())
+
+    .AddAttribute ("Caching function", "test.",
+                   UintegerValue (1),
+                   MakeUintegerAccessor (&DCNET::m_num_message_repeat),
                    MakeUintegerChecker<uint16_t> ())
 
 	
@@ -151,7 +156,8 @@ void DCNET::SendConfirmation(bool isFirstMessage)
 		    message.erase(message.find_last_not_of(" \n\r\t")+1);
 			message.erase(message.find_last_not_of(",")+1);
 		   // NS_LOG_DEBUG("message to be sent is " << message << "\n");
-			std::cout << "sending dcnet protocol start message by master node " << m_my_nodeid << "with message " << message << "\n";
+			std::cout << "Master node is " << m_my_nodeid << "\n";
+			std::cout <<"message to be send " << message << "\n";
 			Ptr<Packet> sendPacket =Create<Packet> ((uint8_t*)message.c_str(),message.size());
 			MyTag sendTag;
 			sendTag.SetSimpleValue(MESSAGE_DCNET_INITIATE);
@@ -182,11 +188,9 @@ DCNET::StartApplication (void)
   	m_unicast_port=9908;
 	m_immediate_neighbor=m_my_nodeid;
 	m_my_start_cluster_node = m_my_nodeid;
-	m_topology="fullyconnected";
 	m_rank=1;
 	m_dcnet_start=false;
 	m_is_master_node=false;
-	m_num_message_repeat=2;
 	NS_LOG_DEBUG("master node is " << m_is_master_node << "\n");  
 	//std::cout << "my node is " << m_my_nodeid << "and my master node is set to " << m_is_master_node << "\n";
   	if (m_socket == 0) {
@@ -866,7 +870,7 @@ void DCNET::HandleBroadcastRead (Ptr<Socket> socket)
 					double jitter = uv->GetValue(0.1,0.6);
 				   	Simulator::Schedule(Seconds(jitter),&DCNET::GeneratePublickeys,this);
 					jitter = uv->GetValue(0.1,0.6);
-					std::cout << "Generating coin flips for node" <<m_my_nodeid <<"\n";
+					//std::cout << "Generating coin flips for node" <<m_my_nodeid <<"\n";
 					Simulator::Schedule(Seconds(jitter),&DCNET::GenerateCoinFlips,this);
 					
 				}

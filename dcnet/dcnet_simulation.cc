@@ -41,7 +41,7 @@ main (int argc, char *argv[])
 	std::string message1="101";
     
     uint16_t messagelen1=message1.size();
-	
+	std::string topology="ring";
 
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
 	//cmd.AddValue ("message", "Message to be sent", message);
@@ -102,8 +102,9 @@ main (int argc, char *argv[])
     ipInterfaceContainer = ipv4.Assign (devices);
 	NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-
-    DCNETHelper app1 (port,false,message1,messagelen1);
+	uint16_t message_repeat = 1; 
+    
+    DCNETHelper app1 (port,message1,messagelen1,topology,message_repeat);
 	
 
 	ApplicationContainer apps1 ;

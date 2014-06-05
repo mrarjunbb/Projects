@@ -40,13 +40,13 @@ main (int argc, char *argv[])
 	cmd.Parse (argc, argv);
    	int numNodes=100;
 
-	std::string message1="101";
+	std::string message1="10101";
     std::string message2="1111";
-    std::string message3="111111";
+  //  std::string message3="111111";
 
-    uint16_t messagelen1=message1.size();
-	uint16_t messagelen2=message2.size();
-	uint16_t messagelen3=message3.size();
+   uint16_t messagelen1=message1.size();
+   uint16_t messagelen2=message2.size();
+	//uint16_t messagelen3=message3.size();
 
 	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
 	//cmd.AddValue ("message", "Message to be sent", message);
@@ -107,8 +107,18 @@ main (int argc, char *argv[])
     ipInterfaceContainer = ipv4.Assign (devices);
 	NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-
-    DCNETHelper app1 (port,false,"",messagelen1);
+	DCNETHelper app1 (port,false,message1,messagelen1);
+	DCNETHelper app2 (port,false,message2,messagelen2);
+	ApplicationContainer apps1 ;
+	ApplicationContainer apps2;
+    for(int i=0;i<10;i++) {
+    	apps1 = app1.Install (c.Get (i));
+    	apps1.Start (Seconds (1.0));
+	   
+	}
+	
+	
+    /*DCNETHelper app1 (port,false,"",messagelen1);
 	DCNETHelper app2 (port,false,"",messagelen2);
 	DCNETHelper app3 (port,false,"",messagelen3);
 
@@ -145,15 +155,16 @@ main (int argc, char *argv[])
     	apps3.Start (Seconds (5.0));
     }
 	apps6 = app6.Install (c.Get (99));
-    apps6.Start (Seconds (6.0));
+    apps6.Start (Seconds (6.0));*/
   
    	NS_LOG_INFO ("Run Simulation.");
     Simulator::Stop (Seconds(2000));
-	AnimationInterface anim("dcnet_net_anim.xml");
-	anim.EnablePacketMetadata(true);
-    FlowMonitorHelper flowmon;
-	Ptr<FlowMonitor> monitor = flowmon.InstallAll();    
+	//AnimationInterface anim("dcnet_net_anim.xml");
+	//anim.EnablePacketMetadata(true);
+   // FlowMonitorHelper flowmon;
+	//Ptr<FlowMonitor> monitor = flowmon.InstallAll();    
     Simulator::Run ();
+   /*
    	monitor->CheckForLostPackets (); 
     Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
     std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
@@ -177,7 +188,7 @@ main (int argc, char *argv[])
     std::cout << "  All Drop Packets: " << DropPacketsum << "\n";
     std::cout << "  Packets Delivery Ratio: " << ((rxPacketsum *100) /txPacketsum) << "%" << "\n";
     std::cout << "  Packets Lost Ratio: " << ((LostPacketsum *100) /txPacketsum) << "%" << "\n";
-    monitor->SerializeToXmlFile("dcnet_ring.flowmon",true,true);
+    monitor->SerializeToXmlFile("dcnet_ring.flowmon",true,true);*/
     Simulator::Destroy ();
     NS_LOG_INFO ("Done.");
 

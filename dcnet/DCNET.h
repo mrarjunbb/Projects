@@ -96,6 +96,7 @@ private:
    *
    * \param socket the socket the packet was received to.
    */
+  void SendDCNETQueryMessage();
   void HandleBroadcastRead (Ptr<Socket> socket);
   void HandleUnicastRead (Ptr<Socket> socket);
   void SendConfirmation(bool);
@@ -129,22 +130,27 @@ private:
   std::map<int,SecByteBlock> m_sharedKeyMap;
   std::map<int,std::string> m_prngstringMap;
   std::map<int,std::string> m_announcementMap;
+  std::vector<int> m_public_keys_neighbors;
   int m_pub_keys_recv;
   int m_prng_str_recv;
   int m_my_nodeid;
   int m_my_start_cluster_node;
   int m_dhAgreedLength;
   unsigned m_message_length; 
+  bool m_publickey_gen;
   int m_master_nodeid; 
   int m_rank;
   int m_immediate_neighbor;
   int m_num_pub_keys_confirm;
   int m_num_coin_ex_confirm;
+  int m_num_message_repeat;
   bool m_dcnet_start;
   std::string m_topology;
   std::string m_final_message;
   const static int MESSAGE_DCNET_QUERY=200;
   std::string m_message;
+  EventId         m_sendBroadcastEvent;    //!< Event id of pending "send packet" event
+   EventId         m_sendConfirmationEvent;    //!< Event id of pending "send packet" event
   const static int MESSAGE_DCNET_ACCEPTANCE=201;
   const static int MESSAGE_DCNET_INITIATE=202;
   const static int MESSAGE_DCNET_PUBLIC_KEYS=203;

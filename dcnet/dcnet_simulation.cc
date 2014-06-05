@@ -29,36 +29,35 @@ std::string phyMode ("ErpOfdmRate54Mbps");
 Ipv4InterfaceContainer ipInterfaceContainer;
 NS_LOG_COMPONENT_DEFINE ("DCNET_simulation");
 
-int 
+int
 main (int argc, char *argv[])
 {
     NS_LOG_UNCOND("Inside Main josh");
     CommandLine cmd;
     NS_LOG_LOGIC("argc : "<<argc);
-	cmd.Parse (argc, argv);
-   	int numNodes=100;
-
-	std::string message1="101";
-    
-    uint16_t messagelen1=message1.size();
-	std::string topology="ring";
-
-	cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
-	//cmd.AddValue ("message", "Message to be sent", message);
+    cmd.Parse (argc, argv);
+    int numNodes=100;
+    std::string message1="1011";
+    std::string topology="ring";
+    uint16_t message_repeat = 2;
+    cmd.AddValue ("numNodes", "Number of Nodes", numNodes);
+    cmd.AddValue ("message", "Message to be sent", message1);
+    cmd.AddValue ("topology", "topology to be used", topology);
+    cmd.AddValue ("message_repeat","Number of times message needs to be send",  message_repeat);
     // disable fragmentation for frames below 2200 bytes
     Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
     Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",StringValue (phyMode));
     NodeContainer c;
-	c.Create (numNodes);
+    c.Create (numNodes);
     WifiHelper wifi;
     YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
-    wifiPhy.Set("EnergyDetectionThreshold",DoubleValue(-74 )); 
-	wifiPhy.Set("CcaMode1Threshold",DoubleValue(-74 )); 
-	wifiPhy.Set("TxGain", DoubleValue (5));
+    wifiPhy.Set("EnergyDetectionThreshold",DoubleValue(-74 ));
+    wifiPhy.Set("CcaMode1Threshold",DoubleValue(-74 ));
+    wifiPhy.Set("TxGain", DoubleValue (5));
     wifiPhy.Set("RxGain", DoubleValue (4));
     wifiPhy.Set("TxPowerLevels", UintegerValue (1));
-    wifiPhy.Set("TxPowerEnd", DoubleValue (35.0)); 
-    wifiPhy.Set("TxPowerStart", DoubleValue (35.0)); 
+    wifiPhy.Set("TxPowerEnd", DoubleValue (35.0));
+    wifiPhy.Set("TxPowerStart", DoubleValue (35.0));
     wifiPhy.SetPcapDataLinkType (YansWifiPhyHelper::DLT_IEEE802_11_RADIO);
     YansWifiChannelHelper wifiChannel;
     wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
@@ -71,23 +70,23 @@ main (int argc, char *argv[])
     wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                   "DataMode",StringValue (phyMode),
                                   "ControlMode",StringValue (phyMode));
-   // Set it to adhoc mode
+    // Set it to adhoc mode
     wifiMac.SetType ("ns3::AdhocWifiMac");
     NetDeviceContainer devices = wifi.Install (wifiPhy, wifiMac, c);
     MobilityHelper mobility;
-	// setup the grid itself: objects are layed out
-    // started from (-100,-100) with 20 objects per row, 
+    // setup the grid itself: objects are layed out
+    // started from (-100,-100) with 20 objects per row,
     // the x interval between each object is 5 meters
     // and the y interval between each object is 20 meters
     mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                    "MinX", DoubleValue (-100.0),
-                                     "MinY", DoubleValue (-100.0),
-                                     "DeltaX", DoubleValue (4.0),
-                                     "DeltaY", DoubleValue (20.0),
-                                     "GridWidth", UintegerValue (20),
-                                     "LayoutType", StringValue ("RowFirst"));
+                                   "MinX", DoubleValue (-100.0),
+                                   "MinY", DoubleValue (-100.0),
+                                   "DeltaX", DoubleValue (4.0),
+                                   "DeltaY", DoubleValue (20.0),
+                                   "GridWidth", UintegerValue (20),
+                                   "LayoutType", StringValue ("RowFirst"));
     mobility.SetMobilityModel ("ns3::RandomDirection2dMobilityModel");
-	//mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    //mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install (c);
 
     Ipv4StaticRoutingHelper staticRouting;
@@ -100,23 +99,17 @@ main (int argc, char *argv[])
     NS_LOG_INFO ("Assign IP Addresses.");
     ipv4.SetBase ("10.1.1.0", "255.255.255.0");
     ipInterfaceContainer = ipv4.Assign (devices);
-	NS_LOG_INFO ("Create Applications.");
+    NS_LOG_INFO ("Create Applications.");
     uint16_t port = 9999;  // well-known echo port number
-	uint16_t message_repeat = 1; 
-    
-    DCNETHelper app1 (port,message1,messagelen1,topology,message_repeat);
-	
 
-	ApplicationContainer apps1 ;
-   
-    //first cluster
-	for(int i=0;i<29;i++) {
-    	apps1 = app1.Install (c.Get (i));
-    	apps1.Start (Seconds (1.0));
-	   
-	}
- 
-   	NS_LOG_INFO ("Run Simulation.");
+    DCNETHelper app1 (port,message1,topology,message_repeat);
+    ApplicationContainer apps1 ;
+    for(int i=0; i<numNodes; i++)
+    {
+        apps1 = app1.Install (c.Get (i));
+        apps1.Start (Seconds (1.0));
+    }
+    NS_LOG_INFO ("Run Simulation.");
     Simulator::Stop (Seconds(2000));
     Simulator::Run ();
     Simulator::Destroy ();

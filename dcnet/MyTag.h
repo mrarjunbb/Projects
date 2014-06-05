@@ -56,125 +56,125 @@ class MyTag : public Tag
 
 public:
 
-  static TypeId GetTypeId (void);
+    static TypeId GetTypeId (void);
 
-  virtual TypeId GetInstanceTypeId (void) const;
+    virtual TypeId GetInstanceTypeId (void) const;
 
-  virtual uint32_t GetSerializedSize (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
 
-  virtual void Serialize (TagBuffer i) const;
+    virtual void Serialize (TagBuffer i) const;
 
-  virtual void Deserialize (TagBuffer i);
+    virtual void Deserialize (TagBuffer i);
 
-  virtual void Print (std::ostream &os) const;
+    virtual void Print (std::ostream &os) const;
 
-  
-  // these are our accessors to our tag structure
 
-  void SetSimpleValue (uint8_t value);
+    // these are our accessors to our tag structure
 
-  uint8_t GetSimpleValue (void) const;
+    void SetSimpleValue (uint8_t value);
+
+    uint8_t GetSimpleValue (void) const;
 
 private:
 
-  uint8_t m_simpleValue;
+    uint8_t m_simpleValue;
 
 };
 
 
-TypeId 
+TypeId
 
 MyTag::GetTypeId (void)
 
 {
 
-  static TypeId tid = TypeId ("ns3::MyTag")
+    static TypeId tid = TypeId ("ns3::MyTag")
 
-    .SetParent<Tag> ()
+                        .SetParent<Tag> ()
 
-    .AddConstructor<MyTag> ()
+                        .AddConstructor<MyTag> ()
 
-    .AddAttribute ("SimpleValue",
+                        .AddAttribute ("SimpleValue",
 
-                   "A simple value",
+                                       "A simple value",
 
-                   EmptyAttributeValue (),
+                                       EmptyAttributeValue (),
 
-                   MakeUintegerAccessor (&MyTag::GetSimpleValue),
+                                       MakeUintegerAccessor (&MyTag::GetSimpleValue),
 
-                   MakeUintegerChecker<uint8_t> ())
+                                       MakeUintegerChecker<uint8_t> ())
 
-    ;
+                        ;
 
-  return tid;
+    return tid;
 
 }
 
-TypeId 
+TypeId
 
 MyTag::GetInstanceTypeId (void) const
 
 {
 
-  return GetTypeId ();
+    return GetTypeId ();
 
 }
 
-uint32_t 
+uint32_t
 MyTag::GetSerializedSize (void) const
 
 {
 
-  return 1;
+    return 1;
 
 }
 
-void 
+void
 
 MyTag::Serialize (TagBuffer i) const
 
 {
 
-  i.WriteU8 (m_simpleValue);
+    i.WriteU8 (m_simpleValue);
 
 }
 
-void 
+void
 
 MyTag::Deserialize (TagBuffer i)
 
 {
 
-  m_simpleValue = i.ReadU8 ();
+    m_simpleValue = i.ReadU8 ();
 
 }
 
-void 
+void
 
 MyTag::Print (std::ostream &os) const
 
 {
 
-  os << "v=" << (uint32_t)m_simpleValue;
+    os << "v=" << (uint32_t)m_simpleValue;
 
 }
 
-void 
+void
 
 MyTag::SetSimpleValue (uint8_t value)
 
 {
 
-  m_simpleValue = value;
+    m_simpleValue = value;
 
 }
 
-uint8_t 
+uint8_t
 MyTag::GetSimpleValue (void) const
 
 {
 
-  return m_simpleValue;
+    return m_simpleValue;
 
 }
 

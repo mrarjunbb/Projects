@@ -6,59 +6,59 @@
 #include "ns3/names.h"
 #include <string>
 
-namespace ns3 {
-
-DCNETHelper::DCNETHelper(uint16_t port, std::string message,uint16_t message_len,std::string topology,uint16_t repeat)
+namespace ns3
 {
-  m_factory.SetTypeId (DCNET::GetTypeId ());
-  SetAttribute ("Port", UintegerValue (port));
-  SetAttribute ("Message",StringValue(message));
-  SetAttribute ("Message Length", UintegerValue (message_len));
-  SetAttribute ("Topology",StringValue(topology));
-  SetAttribute ("Caching function",UintegerValue (repeat));
-  
+
+DCNETHelper::DCNETHelper(uint16_t port, std::string message,std::string topology,uint16_t repeat)
+{
+    m_factory.SetTypeId (DCNET::GetTypeId ());
+    SetAttribute ("Port", UintegerValue (port));
+    SetAttribute ("Message",StringValue(message));
+    SetAttribute ("Topology",StringValue(topology));
+    SetAttribute ("Caching function",UintegerValue (repeat));
+
 }
 
-void 
+void
 DCNETHelper::SetAttribute (
-  std::string name, 
-  const AttributeValue &value)
+    std::string name,
+    const AttributeValue &value)
 {
-  m_factory.Set (name, value);
+    m_factory.Set (name, value);
 }
 
 ApplicationContainer
 DCNETHelper::Install (Ptr<Node> node) const
 {
-  return ApplicationContainer (InstallPriv (node));
+    return ApplicationContainer (InstallPriv (node));
 }
 
 ApplicationContainer
 DCNETHelper::Install (std::string nodeName) const
 {
-  Ptr<Node> node = Names::Find<Node> (nodeName);
-  return ApplicationContainer (InstallPriv (node));
+    Ptr<Node> node = Names::Find<Node> (nodeName);
+    return ApplicationContainer (InstallPriv (node));
 }
 
 ApplicationContainer
 DCNETHelper::Install (NodeContainer c) const
 {
-  ApplicationContainer apps;
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    ApplicationContainer apps;
+    for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
-      apps.Add (InstallPriv (*i));
+        apps.Add (InstallPriv (*i));
     }
 
-  return apps;
+    return apps;
 }
 
 Ptr<Application>
 DCNETHelper::InstallPriv (Ptr<Node> node) const
 {
-  Ptr<Application> app = m_factory.Create<DCNET> ();
-  node->AddApplication (app);
+    Ptr<Application> app = m_factory.Create<DCNET> ();
+    node->AddApplication (app);
 
-  return app;
+    return app;
 }
 
 } // namespace ns3
